@@ -46,7 +46,9 @@ class HelpParameters(
 
     glslc_args = ['--help']
 
-    expected_stdout = '''Usage: glslc [options] file...
+    expected_stdout = '''glslc - Compile shaders into SPIR-V
+
+Usage: glslc [options] file...
 
 An input file of - represents standard input.
 
@@ -54,7 +56,7 @@ Options:
   -c                Only run preprocess, compile, and assemble steps.
   -Dmacro[=defn]    Add an implicit macro definition.
   -E                Outputs only the results of the preprocessing step.
-                    Output defaults to standard out.
+                    Output defaults to standard output.
   -fshader-stage=<stage>
                     Treat subsequent input files as having stage <stage>.
                     Valid stages are vertex, fragment, tesscontrol, tesseval,
