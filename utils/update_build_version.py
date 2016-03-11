@@ -23,6 +23,8 @@
 # directory's "git describe" output enclosed in double quotes and appropriately
 # escaped.
 
+from __future__ import print_function
+
 import datetime
 import os.path
 import subprocess
@@ -43,8 +45,8 @@ def command_output(cmd, dir):
                          stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
     (stdout, _) = p.communicate()
-    if p.returncode !=0:
-        raise RuntimeError("Failed to run %s in %s" % (cmd, dir))
+    if p.returncode != 0:
+        raise RuntimeError('Failed to run %s in %s' % (cmd, dir))
     return stdout
 
 
@@ -55,21 +57,32 @@ def describe(dir):
     Runs 'git describe', or alternately 'git rev-parse HEAD', in dir.  If
     successful, returns the output; otherwise returns 'unknown hash, <date>'."""
     try:
-        return command_output(["git", "describe"], dir).rstrip()
+        return command_output(['git', 'describe'], dir).rstrip()
     except:
         try:
-            return command_output(["git", "rev-parse", "HEAD"], dir).rstrip()
+            return command_output(['git', 'rev-parse', 'HEAD'], dir).rstrip()
         except:
             return 'unknown hash, ' + datetime.date.today().isoformat()
 
+
 def main():
     if len(sys.argv) != 4:
-        print 'usage: {0} <shaderc_dir> <spirv-tools_dir> <glslang_dir>'.format(sys.argv[0])
+        print(
+            'usage: {0} <shaderc_dir> <spirv-tools_dir> <glslang_dir>'.format(sys.argv[0]))
         sys.exit(1)
 
-    new_content = ('"shaderc ' + describe(sys.argv[1]).replace('"', '\\"') + '\\n"\n' +
-                   '"spirv-tools ' + describe(sys.argv[2]).replace('"', '\\"') + '\\n"\n' +
-                   '"glslang ' + describe(sys.argv[3]).replace('"', '\\"') + '\\n"\n')
+    projects = ['shaderc', 'spirv-tools', 'glslang']
+    tags = [
+        # decode() is needed here for Python3 compatibility. In Python2,
+        # str and bytes are the same type, but not in Python3.
+        # Popen.communicate() returns a bytes instance, which needs to be
+        # decoded into text data first in Python3. And this decode() won't
+        # hurt Python2.
+        describe(p).decode('ascii').replace('"', '\\"')
+        for p in sys.argv[1:]]
+    new_content = ''.join([
+        '"{} {}\\n"\n'.format(p, t)
+        for (p, t) in zip(projects, tags)])
     if os.path.isfile(OUTFILE) and new_content == open(OUTFILE, 'r').read():
         sys.exit(0)
     open(OUTFILE, 'w').write(new_content)

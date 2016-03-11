@@ -20,13 +20,16 @@ With --check, prints out all the files missing the copyright notice and exits
 with status 1 if any such files are found, 0 if none.
 """
 
+from __future__ import print_function
+
 import fileinput
 import fnmatch
 import os
 import re
 import sys
 
-COPYRIGHTRE = re.compile('Copyright \d+ The Shaderc Authors. All rights reserved.')
+COPYRIGHTRE = re.compile(
+    'Copyright \d+ The Shaderc Authors. All rights reserved.')
 COPYRIGHT = 'Copyright 2016 The Shaderc Authors. All rights reserved.'
 LICENSED = """
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -97,7 +100,7 @@ def insert_copyright(glob, comment_prefix):
                 has_copyright = True
             sys.stdout.write(line)
         if not has_copyright:
-            open(file, "a").write(copyright + licensed)
+            open(file, 'a').write(copyright + licensed)
 
 
 def alert_if_no_copyright(glob, comment_prefix):
@@ -118,7 +121,7 @@ def alert_if_no_copyright(glob, comment_prefix):
                     has_copyright = True
                     break
         if not has_copyright:
-            print file, ' has no copyright message.'
+            print(file, ' has no copyright message.')
             printed_count += 1
     return printed_count
 
