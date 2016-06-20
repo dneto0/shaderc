@@ -18,7 +18,7 @@ A test case can use these checks by declaring their enclosing mixin classes
 as superclass and providing the expected_* variables required by the check_*()
 methods in the mixin classes.
 """
-import os.path
+import os
 import re
 from glslc_test_framework import GlslCTest
 
@@ -37,7 +37,7 @@ def substitute_file_extension(filename, extension):
     foo -> foo.[extension]
     """
     if filename[-5:] not in ['.vert', '.frag', '.tesc', '.tese',
-                             '.geom', '.comp']:
+                             '.geom', '.comp', '.spvasm']:
         return filename.rsplit('.', 1)[0] + '.' + extension
     else:
         return filename + '.' + extension
@@ -96,6 +96,21 @@ class SuccessfulReturn(ReturnCodeIsZero, NoOutputOnStdout, NoOutputOnStderr):
     pass
 
 
+class NoGeneratedFiles(GlslCTest):
+    """Mixin class for checking that there is no file generated."""
+
+    def check_no_generated_files(self, status):
+        all_files = os.listdir(status.directory)
+        input_files = status.input_filenames
+        if all([f.startswith(status.directory) for f in input_files]):
+            all_files = [os.path.join(status.directory, f) for f in all_files]
+        generated_files = set(all_files) - set(input_files)
+        if len(generated_files) == 0:
+            return True, ''
+        else:
+            return False, 'Extra files generated: {}'.format(generated_files)
+
+
 class CorrectObjectFilePreamble(GlslCTest):
     """Provides methods for verifying preamble for a SPV object file."""
 
@@ -148,8 +163,9 @@ class CorrectObjectFilePreamble(GlslCTest):
             # SPIR-V version number
             if read_word(preamble, 1, little_endian) != 0x00010000:
                 return False, 'Incorrect SPV binary: wrong version number'
-            # glslang SPIR-V magic number
-            if read_word(preamble, 2, little_endian) != 0x00080001:
+            # glslang (0x0008....) or SPIRV-Tools (0x0007....) generator number
+            if read_word(preamble, 2, little_endian) != 0x00080001 and \
+                    read_word(preamble, 2, little_endian) != 0x00070000:
                 return False, ('Incorrect SPV binary: wrong generator magic '
                                'number')
             # reserved for instruction schema
@@ -223,11 +239,20 @@ class ValidFileContents(GlslCTest):
             return False, 'Cannot find file: ' + target_filename
         with open(target_filename, 'r') as target_file:
             file_contents = target_file.read()
-            if file_contents == self.expected_file_contents:
-                return True, ''
-            return False, ('Incorrect file output: \n{act}\nExpected:\n{exp}'
-                           ''.format(act=file_contents,
-                                     exp=self.expected_file_contents))
+            if type(self.expected_file_contents) == str:
+                if file_contents == self.expected_file_contents:
+                    return True, ''
+                return False, ('Incorrect file output: \n{act}\nExpected:\n{exp}'
+                               ''.format(act=file_contents,
+                                         exp=self.expected_file_contents))
+            elif isinstance(self.expected_file_contents, type(re.compile(''))):
+                if self.expected_file_contents.search(file_contents):
+                    return True, ''
+                return False, (
+                    'Incorrect file output: \n{act}\n'
+                    'Expected matching regex pattern:\n{exp}'.format(
+                        act=file_contents,
+                        exp=self.expected_file_contents.pattern))
         return False, ('Could not open target file ' + target_filename +
                        ' for reading')
 

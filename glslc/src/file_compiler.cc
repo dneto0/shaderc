@@ -14,8 +14,11 @@
 
 #include "file_compiler.h"
 
+#include <cassert>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 #include "file.h"
 #include "file_includer.h"
@@ -27,6 +30,35 @@
 namespace {
 using shaderc_util::string_piece;
 
+// A helper function to emit SPIR-V binary code as a list of hex numbers in
+// text form. Returns true if a non-empty compilation result is emitted
+// successfully. Return false if nothing should be emitted, either because the
+// compilation result is empty, or the compilation output is not SPIR-V binary
+// code.
+template <typename CompilationResultType>
+bool EmitSpirvBinaryAsCommaSeparatedNumbers(const CompilationResultType& result,
+                                            std::ostream* out) {
+  // Return early if the compilation output is not in SPIR-V binary code form.
+  if (!std::is_same<CompilationResultType,
+                    shaderc::SpvCompilationResult>::value)
+    return false;
+  // Return early if the compilation result is empty.
+  if (result.cbegin() == result.cend()) return false;
+  std::ios::fmtflags output_stream_flag_cache(out->flags());
+  *out << std::hex << std::setfill('0');
+  auto RI = result.cbegin();
+  *out << "0x" << std::setw(8) << *RI++;
+  for (size_t counter = 1; RI != result.cend(); RI++, counter++) {
+    *out << ",";
+    // Break line for every four words.
+    if (counter % 4 == 0) {
+      *out << std::endl;
+    }
+    *out << "0x" << std::setw(8) << *RI;
+  }
+  out->flags(output_stream_flag_cache);
+  return true;
+}
 }  // anonymous namespace
 
 namespace glslc {
@@ -54,10 +86,10 @@ bool FileCompiler::CompileShaderFile(const std::string& input_file,
     error_file_name = "<stdin>";
   }
 
-  string_piece source_string;
+  string_piece source_string = "";
   if (!input_data.empty()) {
-    source_string = string_piece(&(*input_data.begin()),
-                                 &(*input_data.begin()) + input_data.size());
+    source_string = {&input_data.front(),
+                     &input_data.front() + input_data.size()};
   }
 
   std::unique_ptr<FileIncluder> includer(
@@ -66,6 +98,18 @@ bool FileCompiler::CompileShaderFile(const std::string& input_file,
   // shaderc::CompileOptions.
   const auto& used_source_files = includer->file_path_trace();
   options_.SetIncluder(std::move(includer));
+
+  if (shader_stage == shaderc_spirv_assembly) {
+    // Only act if the requested target is SPIR-V binary.
+    if (output_type_ == OutputType::SpirvBinary) {
+      const auto result =
+          compiler_.AssembleToSpv(source_string.data(), source_string.size());
+      return EmitCompiledResult(result, input_file, error_file_name,
+                                used_source_files, output_stream);
+    } else {
+      return true;
+    }
+  }
 
   switch (output_type_) {
     case OutputType::SpirvBinary: {
@@ -156,8 +200,40 @@ bool FileCompiler::EmitCompiledResult(
     }
   }
 
-  // Write compilation output to output file.
-  out->write(compilation_output.data(), compilation_output.size());
+  // Write compilation output to output file. If an output format for SPIR-V
+  // binary code is specified, it is handled here.
+  switch (binary_emission_format_) {
+    case SpirvBinaryEmissionFormat::Unspecified:
+    case SpirvBinaryEmissionFormat::Binary:
+      // The output format is unspecified or specified as binary output.
+      out->write(compilation_output.data(), compilation_output.size());
+      break;
+    case SpirvBinaryEmissionFormat::Numbers:
+      // The output format is specified to be a list of hex numbers, the
+      // compilation output must be in SPIR-V binary code form.
+      assert(output_type_ == OutputType::SpirvBinary);
+      if (EmitSpirvBinaryAsCommaSeparatedNumbers(result, out)) {
+        // Only emits the end-of-line character when the emitted compilation
+        // result is not empty.
+        *out << std::endl;
+      }
+      break;
+    case SpirvBinaryEmissionFormat::CInitList:
+      // The output format is specified to be a C-style initializer list, the
+      // compilation output must be in SPIR-V binary code form.
+      assert(output_type_ == OutputType::SpirvBinary);
+      if (result.begin() != result.end()) {
+        // Only emits the '{' when the compilation result is not empty.
+        *out << "{";
+      }
+      if (EmitSpirvBinaryAsCommaSeparatedNumbers(result, out)) {
+        // Only emits the end-of-line character when the emitted compilation
+        // result is not empty.
+        *out << "}" << std::endl;
+      }
+      break;
+  }
+
   // Write error message to std::cerr.
   std::cerr << result.GetErrorMessage();
   if (out->fail()) {
@@ -217,9 +293,9 @@ bool FileCompiler::ValidateOptions(size_t num_files) {
 
   // If we are outputting many object files, we cannot specify -o. Also
   // if we are preprocessing multiple files they must be to stdout.
-  if (num_files > 1 &&
-      ((!PreprocessingOnly() && !needs_linking_ && !output_file_name_.empty()) ||
-       (PreprocessingOnly() && output_file_name_ != "-"))) {
+  if (num_files > 1 && ((!PreprocessingOnly() && !needs_linking_ &&
+                         !output_file_name_.empty()) ||
+                        (PreprocessingOnly() && output_file_name_ != "-"))) {
     std::cerr << "glslc: error: cannot specify -o when generating multiple"
                  " output files"
               << std::endl;
@@ -235,6 +311,37 @@ bool FileCompiler::ValidateOptions(size_t num_files) {
       std::cerr << "glslc: error: " << dependency_info_dumping_hander_error_msg
                 << std::endl;
       return false;
+    }
+  }
+
+  // If the output format is specified to be a binary, a list of hex numbers or
+  // a C-style initializer list, the output must be in SPIR-V binary code form.
+  if (binary_emission_format_ != SpirvBinaryEmissionFormat::Unspecified) {
+    if (output_type_ != OutputType::SpirvBinary) {
+      std::cerr << "glslc: error: cannot emit output as a ";
+      switch (binary_emission_format_) {
+        case SpirvBinaryEmissionFormat::Binary:
+          std::cerr << "binary";
+          break;
+        case SpirvBinaryEmissionFormat::Numbers:
+          std::cerr << "list of hex numbers";
+          break;
+        case SpirvBinaryEmissionFormat::CInitList:
+          std::cerr << "C-style initializer list";
+          break;
+        case SpirvBinaryEmissionFormat::Unspecified:
+          // The compiler should never be here at runtime. This case is added to
+          // complete the switch cases.
+          break;
+      }
+      std::cerr << " when the output is not SPIR-V binary code" << std::endl;
+      return false;
+    }
+    if (dependency_info_dumping_handler_ &&
+        dependency_info_dumping_handler_->DumpingAsCompilationOutput()) {
+      std::cerr << "glslc: error: cannot dump dependency info when specifying "
+                   "any binary output format"
+                << std::endl;
     }
   }
 

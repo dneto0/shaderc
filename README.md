@@ -7,7 +7,7 @@
 A collection of tools, libraries and tests for shader compilation.
 At the moment it includes:
 
-- `glslc`, a command line compiler for GLSL to SPIR-V, and
+- [`glslc`](glslc), a command line compiler for GLSL to SPIR-V, and
 - `libshaderc` a library API for doing the same.
 
 ## Status
@@ -63,6 +63,7 @@ cd $SOURCE_DIR/third_party
 git clone https://github.com/google/googletest.git
 git clone https://github.com/google/glslang.git
 git clone https://github.com/KhronosGroup/SPIRV-Tools.git spirv-tools
+git clone https://github.com/KhronosGroup/SPIRV-Headers.git spirv-tools/external/spirv-headers
 cd $SOURCE_DIR/
 ```
 
@@ -146,7 +147,7 @@ Optionally, the following tools may be installed on any OS:
  - [`asciidoctor`](http://asciidoctor.org/): for generating documenation.
    - [`pygments.rb`](https://rubygems.org/gems/pygments.rb) required by
      `asciidoctor` for syntax highlighting.
- - [`nosetests`](https://nose.readthedocs.org): for testing the Python code.
+ - [`nosetests`](https://nose.readthedocs.io): for testing the Python code.
 
 ### Building and running Shderc using Docker
 

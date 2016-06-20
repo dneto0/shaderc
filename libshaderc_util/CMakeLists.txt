@@ -8,6 +8,7 @@ add_library(shaderc_util STATIC
   include/libshaderc_util/mutex.h
   include/libshaderc_util/message.h
   include/libshaderc_util/resources.h
+  include/libshaderc_util/spirv_tools_wrapper.h
   include/libshaderc_util/string_piece.h
   include/libshaderc_util/universal_unistd.h
   include/libshaderc_util/version_profile.h
@@ -17,6 +18,7 @@ add_library(shaderc_util STATIC
   src/message.cc
   src/resources.cc
   src/shader_stage.cc
+  src/spirv_tools_wrapper.cc
   src/version_profile.cc
 )
 
@@ -54,7 +56,8 @@ shaderc_add_tests(
 
 # This target copies content of testdata into the build directory.
 add_custom_target(testdata COMMAND
-  ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/testdata/copy-to-build.cmake)
+  ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/testdata/copy-to-build.cmake
+  COMMENT "Copy testdata into build directory")
 
 if(${SHADERC_ENABLE_TESTS})
   add_dependencies(shaderc_util_file_finder_test testdata)
