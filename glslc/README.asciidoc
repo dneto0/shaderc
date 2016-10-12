@@ -11,14 +11,16 @@
 
 ----
 glslc [-c|-S|-E]
-      [-Dmacroname[=value]...]
-      [-Idirectory...]
-      [-std=standard] [-x glsl]
+      [-x glsl] [-std=standard]
       [-fshader-stage=...]
       [--target-env=...]
       [-g]
+      [-O0|-Os]
+      [-Idirectory...]
+      [-Dmacroname[=value]...]
       [-w] [-Werror]
-      [-o outfile] shader...
+      [-o outfile]
+      shader...
 ----
 
 == Description
@@ -238,7 +240,7 @@ empty value.
 
 ==== `-I`
 
-`-Idirectory' or `-I directory` adds the specified directory to the search path
+`-Idirectory` or `-I directory` adds the specified directory to the search path
 for include files.  The directory may be an absolute path or a relative path to
 the current working directory.
 
@@ -249,8 +251,18 @@ the current working directory.
 Requests that the compiler place source-level debug information into the object
 code, such as identifier names and line numbers.
 
+This option restrains `-O` from turning on the strip-debug-info optimization
+pass.
+
 NOTE: Currently this option has no effect.  Full functionality depends on
 glslang support for generating debug info.
+
+==== `-O0`, `-Os`
+
+`-O` specifies which optimization level to use:
+
+* `-O0` means "no optimization". This level generates the most debuggable code.
+* `-Os` enables optimizations to reduce code size.
 
 ==== `-mfmt=<format>`
 

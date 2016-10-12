@@ -163,6 +163,12 @@ class CompileOptions {
     shaderc_compile_options_set_generate_debug_info(options_);
   }
 
+  // Sets the compiler optimization level to the given level. Only the last one
+  // takes effect if multiple calls of this function exist.
+  void SetOptimizationLevel(shaderc_optimization_level level) {
+    shaderc_compile_options_set_optimization_level(options_, level);
+  }
+
   // A C++ version of the libshaderc includer interface.
   class IncluderInterface {
    public:
@@ -328,19 +334,42 @@ class Compiler {
   // (https://github.com/KhronosGroup/SPIRV-Tools/blob/master/syntax.md).
   // It is valid for the returned CompilationResult object to outlive this
   // compiler object.
+  // The assembling will pick options suitable for assembling specified in the
+  // CompileOptions parameter.
+  SpvCompilationResult AssembleToSpv(const char* source_assembly,
+                                     size_t source_assembly_size,
+                                     const CompileOptions& options) const {
+    return SpvCompilationResult(shaderc_assemble_into_spv(
+        compiler_, source_assembly, source_assembly_size, options.options_));
+  }
+
+  // Assembles the given SPIR-V assembly and returns a SPIR-V binary module
+  // compilation result.
+  // Like the first AssembleToSpv method but uses the default compiler options.
   SpvCompilationResult AssembleToSpv(const char* source_assembly,
                                      size_t source_assembly_size) const {
     return SpvCompilationResult(shaderc_assemble_into_spv(
-        compiler_, source_assembly, source_assembly_size));
+        compiler_, source_assembly, source_assembly_size, nullptr));
   }
 
   // Assembles the given SPIR-V assembly and returns a SPIR-V binary module
   // compilation result.
   // Like the first AssembleToSpv method but the source is provided as a
   // std::string.
+  SpvCompilationResult AssembleToSpv(const std::string& source_assembly,
+                                     const CompileOptions& options) const {
+    return SpvCompilationResult(
+        shaderc_assemble_into_spv(compiler_, source_assembly.data(),
+                                  source_assembly.size(), options.options_));
+  }
+
+  // Assembles the given SPIR-V assembly and returns a SPIR-V binary module
+  // compilation result.
+  // Like the first AssembleToSpv method but the source is provided as a
+  // std::string and also uses default compiler options.
   SpvCompilationResult AssembleToSpv(const std::string& source_assembly) const {
     return SpvCompilationResult(shaderc_assemble_into_spv(
-        compiler_, source_assembly.data(), source_assembly.size()));
+        compiler_, source_assembly.data(), source_assembly.size(), nullptr));
   }
 
   // Compiles the given source GLSL and returns the SPIR-V assembly text

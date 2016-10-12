@@ -64,6 +64,22 @@ std::pair<int, string_piece> DecodeLineDirective(string_piece directive) {
   directive = directive.strip("\" \n");
   return std::make_pair(line, directive);
 }
+
+// Gets the corresponding message rules for the given target environment.
+EShMessages GetMessageRules(shaderc_util::Compiler::TargetEnv env) {
+  using shaderc_util::Compiler;
+  switch (env) {
+    case Compiler::TargetEnv::OpenGLCompat:
+      break;
+    case Compiler::TargetEnv::OpenGL:
+      return static_cast<EShMessages>(EShMsgSpvRules | EShMsgCascadingErrors);
+    case Compiler::TargetEnv::Vulkan:
+      return static_cast<EShMessages>(EShMsgSpvRules | EShMsgVulkanRules |
+                                      EShMsgCascadingErrors);
+  }
+  return EShMsgCascadingErrors;
+}
+
 }  // anonymous namespace
 
 namespace shaderc_util {
@@ -158,10 +174,10 @@ std::tuple<bool, std::vector<uint32_t>, size_t> Compiler::Compile(
   shader.setPreamble(preamble.c_str());
 
   // TODO(dneto): Generate source-level debug info if requested.
-  bool success =
-      shader.parse(&shaderc_util::kDefaultTBuiltInResource, default_version_,
-                   default_profile_, force_version_profile_,
-                   kNotForwardCompatible, message_rules_, includer);
+  bool success = shader.parse(&shaderc_util::kDefaultTBuiltInResource,
+                              default_version_, default_profile_,
+                              force_version_profile_, kNotForwardCompatible,
+                              GetMessageRules(target_env_), includer);
 
   success &= PrintFilteredErrors(error_tag, error_stream, warnings_as_errors_,
                                  suppress_warnings_, shader.getInfoLog(),
@@ -177,14 +193,25 @@ std::tuple<bool, std::vector<uint32_t>, size_t> Compiler::Compile(
   if (!success) return result_tuple;
 
   // 'spirv' is an alias for the compilation_output_data. This alias is added
-  // to
-  // serve as an input for the call to DissassemblyBinary.
+  // to serve as an input for the call to DissassemblyBinary.
   std::vector<uint32_t>& spirv = compilation_output_data;
   // Note the call to GlslangToSpv also populates compilation_output_data.
   glslang::GlslangToSpv(*program.getIntermediate(used_shader_stage), spirv);
+
+  if (!enabled_opt_passes_.empty()) {
+    std::string opt_errors;
+    if (!SpirvToolsOptimize(target_env_, enabled_opt_passes_, &spirv,
+                            &opt_errors)) {
+      *error_stream << "shaderc: internal error: compilation succeeded but "
+                       "failed to optimize: "
+                    << opt_errors << "\n";
+      return result_tuple;
+    }
+  }
+
   if (output_type == OutputType::SpirvAssemblyText) {
     std::string text_or_error;
-    if (!SpirvToolsDisassemble(spirv, &text_or_error)) {
+    if (!SpirvToolsDisassemble(target_env_, spirv, &text_or_error)) {
       *error_stream << "shaderc: internal error: compilation succeeded but "
                        "failed to disassemble: "
                     << text_or_error << "\n";
@@ -209,9 +236,7 @@ void Compiler::AddMacroDefinition(const char* macro, size_t macro_length,
       definition ? std::string(definition, definition_length) : "";
 }
 
-void Compiler::SetMessageRules(EShMessages rules) { message_rules_ = rules; }
-
-EShMessages Compiler::GetMessageRules() const { return message_rules_; }
+void Compiler::SetTargetEnv(Compiler::TargetEnv env) { target_env_ = env; }
 
 void Compiler::SetForcedVersionProfile(int version, EProfile profile) {
   default_version_ = version;
@@ -221,7 +246,30 @@ void Compiler::SetForcedVersionProfile(int version, EProfile profile) {
 
 void Compiler::SetWarningsAsErrors() { warnings_as_errors_ = true; }
 
-void Compiler::SetGenerateDebugInfo() { generate_debug_info_ = true; }
+void Compiler::SetGenerateDebugInfo() {
+  generate_debug_info_ = true;
+  for (size_t i = 0; i < enabled_opt_passes_.size(); ++i) {
+    if (enabled_opt_passes_[i] == PassId::kStripDebugInfo) {
+      enabled_opt_passes_[i] = PassId::kNullPass;
+    }
+  }
+}
+
+void Compiler::SetOptimizationLevel(Compiler::OptimizationLevel level) {
+  // Clear previous settings first.
+  enabled_opt_passes_.clear();
+
+  switch (level) {
+    case OptimizationLevel::Size:
+      if (!generate_debug_info_) {
+        enabled_opt_passes_.push_back(PassId::kStripDebugInfo);
+      }
+      enabled_opt_passes_.push_back(PassId::kUnifyConstant);
+      break;
+    default:
+      break;
+  }
+}
 
 void Compiler::SetSuppressWarnings() { suppress_warnings_ = true; }
 
@@ -240,8 +288,8 @@ std::tuple<bool, std::string, std::string> Compiler::PreprocessShader(
   // The preprocessor might be sensitive to the target environment.
   // So combine the existing rules with the just-give-me-preprocessor-output
   // flag.
-  const auto rules =
-      static_cast<EShMessages>(EShMsgOnlyPreprocessor | message_rules_);
+  const auto rules = static_cast<EShMessages>(EShMsgOnlyPreprocessor |
+                                              GetMessageRules(target_env_));
 
   std::string preprocessed_shader;
   const bool success = shader.preprocess(

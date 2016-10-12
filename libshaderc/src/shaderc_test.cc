@@ -122,9 +122,10 @@ class Compilation {
 class Assembling {
  public:
   // Assembles shader and keeps the result.
-  Assembling(const shaderc_compiler_t compiler, const std::string& assembly)
+  Assembling(const shaderc_compiler_t compiler, const std::string& assembly,
+             const shaderc_compile_options_t options = nullptr)
       : compiled_result_(shaderc_assemble_into_spv(compiler, assembly.data(),
-                                                   assembly.size())) {}
+                                                   assembly.size(), options)) {}
 
   ~Assembling() { shaderc_result_release(compiled_result_); }
 
@@ -265,11 +266,16 @@ class CompileStringTest : public testing::Test {
 // checking methods. Subclass tests can access the compiler object to set their
 // properties.
 class AssembleStringTest : public testing::Test {
+ public:
+  AssembleStringTest() : options_(shaderc_compile_options_initialize()) {}
+  ~AssembleStringTest() { shaderc_compile_options_release(options_); }
+
  protected:
   // Assembles the given assembly and returns true on success.
   bool AssemblingSuccess(const std::string& assembly) {
     return CompilationResultIsSuccess(
-        Assembling(compiler_.get_compiler_handle(), assembly).result());
+        Assembling(compiler_.get_compiler_handle(), assembly, options_)
+            .result());
   }
 
   bool AssemblingValid(const std::string& assembly) {
@@ -279,6 +285,7 @@ class AssembleStringTest : public testing::Test {
   }
 
   Compiler compiler_;
+  shaderc_compile_options_t options_;
 };
 
 // Name holders so that we have test cases being grouped with only one real
@@ -309,6 +316,16 @@ TEST_F(AssembleStringTest, GarbageString) {
   EXPECT_FALSE(CompilationResultIsSuccess(assembling.result()));
   EXPECT_EQ(1u, shaderc_result_get_num_errors(assembling.result()));
   EXPECT_EQ(0u, shaderc_result_get_num_warnings(assembling.result()));
+}
+
+// TODO(antiagainst): right now there is no assembling difference for all the
+// target environments exposed by shaderc. So the following is just testing the
+// target environment is accepted.
+TEST_F(AssembleStringTest, AcceptTargetEnv) {
+  ASSERT_NE(nullptr, compiler_.get_compiler_handle());
+  shaderc_compile_options_set_target_env(options_, shaderc_target_env_opengl,
+                                         /* version = */ 0);
+  EXPECT_TRUE(AssemblingSuccess("OpCapability Shader"));
 }
 
 TEST_F(CompileStringTest, ReallyLongShader) {
@@ -592,6 +609,85 @@ TEST_F(CompileStringWithOptionsTest, GenerateDebugInfoDisassembly) {
       CompilationOutput(kMinimalDebugInfoShader, shaderc_glsl_vertex_shader,
                         options_.get(), OutputType::SpirvAssemblyText),
       HasSubstr("debug_info_sample"));
+}
+
+TEST_F(CompileStringWithOptionsTest, CompileAndOptimizeWithLevelZero) {
+  shaderc_compile_options_set_optimization_level(
+      options_.get(), shaderc_optimization_level_zero);
+  const std::string disassembly_text =
+      CompilationOutput(kMinimalShader, shaderc_glsl_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  for (const auto& substring : kMinimalShaderDisassemblySubstrings) {
+    EXPECT_THAT(disassembly_text, HasSubstr(substring));
+  }
+  // Check that we still have debug instructions.
+  EXPECT_THAT(disassembly_text, HasSubstr("OpName"));
+  EXPECT_THAT(disassembly_text, HasSubstr("OpSource"));
+}
+
+TEST_F(CompileStringWithOptionsTest, CompileAndOptimizeWithLevelSize) {
+  shaderc_compile_options_set_optimization_level(
+      options_.get(), shaderc_optimization_level_size);
+  const std::string disassembly_text =
+      CompilationOutput(kMinimalShader, shaderc_glsl_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  for (const auto& substring : kMinimalShaderDisassemblySubstrings) {
+    EXPECT_THAT(disassembly_text, HasSubstr(substring));
+  }
+  // Check that we do not have debug instructions.
+  EXPECT_THAT(disassembly_text, Not(HasSubstr("OpName")));
+  EXPECT_THAT(disassembly_text, Not(HasSubstr("OpSource")));
+}
+
+TEST_F(CompileStringWithOptionsTest, FollowingOptLevelOverridesPreviousOne) {
+  shaderc_compile_options_set_optimization_level(
+      options_.get(), shaderc_optimization_level_size);
+  // Optimization level settings overridden by
+  shaderc_compile_options_set_optimization_level(
+      options_.get(), shaderc_optimization_level_zero);
+  const std::string disassembly_text =
+      CompilationOutput(kMinimalShader, shaderc_glsl_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  for (const auto& substring : kMinimalShaderDisassemblySubstrings) {
+    EXPECT_THAT(disassembly_text, HasSubstr(substring));
+  }
+  // Check that we still have debug instructions.
+  EXPECT_THAT(disassembly_text, HasSubstr("OpName"));
+  EXPECT_THAT(disassembly_text, HasSubstr("OpSource"));
+}
+
+TEST_F(CompileStringWithOptionsTest,
+       GenerateDebugInfoOverridesOptimizationLevel) {
+  shaderc_compile_options_set_optimization_level(
+      options_.get(), shaderc_optimization_level_size);
+  // Optimization level settings overridden by
+  shaderc_compile_options_set_generate_debug_info(options_.get());
+  const std::string disassembly_text =
+      CompilationOutput(kMinimalShader, shaderc_glsl_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  for (const auto& substring : kMinimalShaderDisassemblySubstrings) {
+    EXPECT_THAT(disassembly_text, HasSubstr(substring));
+  }
+  // Check that we still have debug instructions.
+  EXPECT_THAT(disassembly_text, HasSubstr("OpName"));
+  EXPECT_THAT(disassembly_text, HasSubstr("OpSource"));
+}
+
+TEST_F(CompileStringWithOptionsTest,
+       GenerateDebugInfoProhibitsOptimizationLevel) {
+  // Setting generate debug info first also works.
+  shaderc_compile_options_set_generate_debug_info(options_.get());
+  shaderc_compile_options_set_optimization_level(
+      options_.get(), shaderc_optimization_level_size);
+  const std::string disassembly_text =
+      CompilationOutput(kMinimalShader, shaderc_glsl_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  for (const auto& substring : kMinimalShaderDisassemblySubstrings) {
+    EXPECT_THAT(disassembly_text, HasSubstr(substring));
+  }
+  // Check that we still have debug instructions.
+  EXPECT_THAT(disassembly_text, HasSubstr("OpName"));
+  EXPECT_THAT(disassembly_text, HasSubstr("OpSource"));
 }
 
 TEST_F(CompileStringWithOptionsTest, PreprocessingOnlyOption) {

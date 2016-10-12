@@ -28,7 +28,7 @@ target_include_directories(shaderc_util
 find_package(Threads)
 target_link_libraries(shaderc_util PRIVATE
   glslang OSDependent OGLCompiler HLSL glslang SPIRV
-  SPIRV-Tools ${CMAKE_THREAD_LIBS_INIT})
+  SPIRV-Tools-opt ${CMAKE_THREAD_LIBS_INIT})
 
 shaderc_add_tests(
   TEST_PREFIX shaderc_util
@@ -50,7 +50,9 @@ endif()
 shaderc_add_tests(
   TEST_PREFIX shaderc_util
   LINK_LIBS shaderc_util
-  INCLUDE_DIRS ${glslang_SOURCE_DIR}
+  INCLUDE_DIRS
+    ${glslang_SOURCE_DIR}
+    ${spirv-tools_SOURCE_DIR}/include
   TEST_NAMES
     compiler)
 
@@ -63,5 +65,3 @@ if(${SHADERC_ENABLE_TESTS})
   add_dependencies(shaderc_util_file_finder_test testdata)
   add_dependencies(shaderc_util_io_test testdata)
 endif()
-
-add_definitions(-DCURRENT_DIR="${CMAKE_CURRENT_BINARY_DIR}")

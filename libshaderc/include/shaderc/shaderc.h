@@ -74,6 +74,12 @@ typedef enum {
   shaderc_compilation_status_invalid_assembly,
 } shaderc_compilation_status;
 
+// Optimization level.
+typedef enum {
+  shaderc_optimization_level_zero,  // no optimization
+  shaderc_optimization_level_size,  // optimize towards reducing code size
+} shaderc_optimization_level;
+
 // Usage examples:
 //
 // Aggressively release compiler resources, but spend time in initialization
@@ -155,6 +161,11 @@ void shaderc_compile_options_add_macro_definition(
 // Sets the compiler mode to generate debug information in the output.
 void shaderc_compile_options_set_generate_debug_info(
     shaderc_compile_options_t options);
+
+// Sets the compiler optimization level to the given level. Only the last one
+// takes effect if multiple calls of this function exist.
+void shaderc_compile_options_set_optimization_level(
+    shaderc_compile_options_t options, shaderc_optimization_level level);
 
 // Forces the GLSL language version and profile to a given pair. The version
 // number is the same as would appear in the #version annotation in the source.
@@ -284,12 +295,15 @@ shaderc_compilation_result_t shaderc_compile_into_preprocessed_text(
 // (https://github.com/KhronosGroup/SPIRV-Tools/blob/master/syntax.md),
 // assembles it into SPIR-V binary and a shaderc_compilation_result will be
 // returned to hold the results.
+// The assembling will pick options suitable for assembling specified in the
+// additional_options parameter.
 // May be safely called from multiple threads without explicit synchronization.
 // If there was failure in allocating the compiler object, null will be
 // returned.
 shaderc_compilation_result_t shaderc_assemble_into_spv(
     const shaderc_compiler_t compiler, const char* source_assembly,
-    size_t source_assembly_size);
+    size_t source_assembly_size,
+    const shaderc_compile_options_t additional_options);
 
 // The following functions, operating on shaderc_compilation_result_t objects,
 // offer only the basic thread-safety guarantee.
