@@ -26,6 +26,7 @@
 #include "counting_includer.h"
 #include "file_finder.h"
 #include "mutex.h"
+#include "resources.h"
 #include "string_piece.h"
 
 namespace shaderc_util {
@@ -39,11 +40,11 @@ enum class PassId;
 // glslang state can be correctly handled.
 // TODO(awoloszyn): Once glslang no longer has static global mutable state
 //                  remove this class.
-class GlslInitializer {
+class GlslangInitializer {
  public:
-  GlslInitializer() { glslang::InitializeProcess(); }
+  GlslangInitializer() { glslang::InitializeProcess(); }
 
-  ~GlslInitializer() { glslang::FinalizeProcess(); }
+  ~GlslangInitializer() { glslang::FinalizeProcess(); }
 
   // Calls release on GlslangInitializer used to intialize this object
   // when it is destroyed.
@@ -63,11 +64,11 @@ class GlslInitializer {
     InitializationToken(const InitializationToken&) = delete;
 
    private:
-    InitializationToken(GlslInitializer* initializer)
+    InitializationToken(GlslangInitializer* initializer)
         : initializer_(initializer) {}
 
-    friend class GlslInitializer;
-    GlslInitializer* initializer_;
+    friend class GlslangInitializer;
+    GlslangInitializer* initializer_;
   };
 
   // Obtains exclusive access to the glslang state. The state remains
@@ -92,6 +93,12 @@ using MacroDictionary = std::unordered_map<std::string, std::string>;
 // Holds all of the state required to compile source GLSL into SPIR-V.
 class Compiler {
  public:
+  // Source language
+  enum class SourceLanguage {
+    GLSL,  // The default
+    HLSL,
+  };
+
   // Target environment.
   enum class TargetEnv {
     Vulkan,
@@ -111,6 +118,13 @@ class Compiler {
     Size,  // Optimization towards reducing code size.
   };
 
+  // Resource limits.  These map to the "max*" fields in glslang::TBuiltInResource.
+  enum class Limit {
+#define RESOURCE(NAME,FIELD,CNAME) NAME,
+#include "resources.inc"
+#undef RESOURCE
+  };
+
   // Creates an default compiler instance targeting at Vulkan environment. Uses
   // version 110 and no profile specification as the default for GLSL.
   Compiler()
@@ -123,7 +137,9 @@ class Compiler {
         suppress_warnings_(false),
         generate_debug_info_(false),
         enabled_opt_passes_(),
-        target_env_(TargetEnv::Vulkan) {}
+        target_env_(TargetEnv::Vulkan),
+        source_language_(SourceLanguage::GLSL),
+        limits_(kDefaultTBuiltInResource) {}
 
   // Requests that the compiler place debug information into the object code,
   // such as identifier names and line numbers.
@@ -149,23 +165,36 @@ class Compiler {
   // Sets the target environment.
   void SetTargetEnv(TargetEnv env);
 
+  // Sets the souce language.
+  void SetSourceLanguage(SourceLanguage lang);
+
   // Forces (without any verification) the default version and profile for
   // subsequent CompileShader() calls.
   void SetForcedVersionProfile(int version, EProfile profile);
+
+  // Sets a resource limit.
+  void SetLimit(Limit limit, int value);
+
+  // Returns the current limit.
+  int GetLimit(Limit limit) const;
 
   // Compiles the shader source in the input_source_string parameter.
   //
   // If the forced_shader stage parameter is not EShLangCount then
   // the shader is assumed to be of the given stage.
   //
+  // For HLSL compilation, entry_point_name is the null-terminated string for
+  // the entry point.  For GLSL compilation, entry_point_name is ignored, and
+  // compilation assumes the entry point is named "main".
+  //
   // The stage_callback function will be called if a shader_stage has
   // not been forced and the stage can not be determined
   // from the shader text. Any #include directives are parsed with the given
   // includer.
   //
-  // The initializer parameter must be a valid GlslInitializer object.
+  // The initializer parameter must be a valid GlslangInitializer object.
   // Acquire will be called on the initializer and the result will be
-  // destoryed before the function ends.
+  // destroyed before the function ends.
   //
   // The output_type parameter determines what kind of output should be
   // produced.
@@ -184,13 +213,13 @@ class Compiler {
   // If the output is a text string, the size equals the length of that string.
   std::tuple<bool, std::vector<uint32_t>, size_t> Compile(
       const string_piece& input_source_string, EShLanguage forced_shader_stage,
-      const std::string& error_tag,
+      const std::string& error_tag, const char* entry_point_name,
       const std::function<EShLanguage(std::ostream* error_stream,
                                       const string_piece& error_tag)>&
           stage_callback,
       CountingIncluder& includer, OutputType output_type,
       std::ostream* error_stream, size_t* total_warnings, size_t* total_errors,
-      GlslInitializer* initializer) const;
+      GlslangInitializer* initializer) const;
 
   static EShMessages GetDefaultRules() {
     return static_cast<EShMessages>(EShMsgSpvRules | EShMsgVulkanRules |
@@ -292,6 +321,12 @@ class Compiler {
   // messages as well as the set of available builtins, as per the
   // implementation of glslang.
   TargetEnv target_env_;
+
+  // The source language.  Defaults to GLSL.
+  SourceLanguage source_language_;
+
+  // The resource limits to be used.
+  TBuiltInResource limits_;
 };
 
 // Converts a string to a vector of uint32_t by copying the content of a given

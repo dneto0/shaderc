@@ -238,6 +238,20 @@ shaderc_util::Compiler::TargetEnv GetCompilerTargetEnv(shaderc_target_env env) {
   return shaderc_util::Compiler::TargetEnv::Vulkan;
 }
 
+// Returns the Compiler::Limit enum for the given shaderc_limit enum.
+shaderc_util::Compiler::Limit CompilerLimit(shaderc_limit limit) {
+  switch (limit) {
+#define RESOURCE(NAME,FIELD,CNAME) \
+     case shaderc_limit_##CNAME: return shaderc_util::Compiler::Limit::NAME;
+#include "libshaderc_util/resources.inc"
+#undef RESOURCE
+    default:
+      break;
+  }
+  assert(0 && "Should not have reached here");
+  return static_cast<shaderc_util::Compiler::Limit>(0);
+}
+
 }  // anonymous namespace
 
 struct shaderc_compile_options {
@@ -268,6 +282,15 @@ void shaderc_compile_options_add_macro_definition(
     shaderc_compile_options_t options, const char* name, size_t name_length,
     const char* value, size_t value_length) {
   options->compiler.AddMacroDefinition(name, name_length, value, value_length);
+}
+
+void shaderc_compile_options_set_source_language(
+    shaderc_compile_options_t options,
+    shaderc_source_language set_lang) {
+  auto lang = shaderc_util::Compiler::SourceLanguage::GLSL;
+  if (set_lang == shaderc_source_language_hlsl)
+    lang = shaderc_util::Compiler::SourceLanguage::HLSL;
+  options->compiler.SetSourceLanguage(lang);
 }
 
 void shaderc_compile_options_set_generate_debug_info(
@@ -337,9 +360,14 @@ void shaderc_compile_options_set_warnings_as_errors(
   options->compiler.SetWarningsAsErrors();
 }
 
+void shaderc_compile_options_set_limit(
+    shaderc_compile_options_t options, shaderc_limit limit, int value) {
+  options->compiler.SetLimit(CompilerLimit(limit), value);
+}
+
 shaderc_compiler_t shaderc_compiler_initialize() {
-  static shaderc_util::GlslInitializer* initializer =
-      new shaderc_util::GlslInitializer;
+  static shaderc_util::GlslangInitializer* initializer =
+      new shaderc_util::GlslangInitializer;
   shaderc_compiler_t compiler = new (std::nothrow) shaderc_compiler;
   compiler->initializer = initializer;
   return compiler;
@@ -385,7 +413,7 @@ shaderc_compilation_result_t CompileToSpecifiedOutputType(
       std::tie(compilation_succeeded, compilation_output_data,
                compilation_output_data_size_in_bytes) =
           additional_options->compiler.Compile(
-              source_string, forced_stage, input_file_name_str,
+              source_string, forced_stage, input_file_name_str, entry_point_name,
               // stage_deducer has a flag: error_, which we need to check later.
               // We need to make this a reference wrapper, so that std::function
               // won't make a copy for this callable object.
@@ -397,7 +425,7 @@ shaderc_compilation_result_t CompileToSpecifiedOutputType(
       std::tie(compilation_succeeded, compilation_output_data,
                compilation_output_data_size_in_bytes) =
           shaderc_util::Compiler().Compile(
-              source_string, forced_stage, input_file_name_str,
+              source_string, forced_stage, input_file_name_str, entry_point_name,
               std::ref(stage_deducer), includer, output_type, &errors,
               &total_warnings, &total_errors, compiler->initializer);
     }

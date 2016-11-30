@@ -21,11 +21,15 @@
 #include <string>
 #include <utility>
 
+#include "libshaderc_util/compiler.h"
+#include "libshaderc_util/io.h"
 #include "libshaderc_util/string_piece.h"
+#include "shaderc/shaderc.h"
 #include "spirv-tools/libspirv.h"
 
 #include "file.h"
 #include "file_compiler.h"
+#include "resource_parse.h"
 #include "shader_stage.h"
 
 using shaderc_util::string_piece;
@@ -45,6 +49,17 @@ Options:
   -Dmacro[=defn]    Add an implicit macro definition.
   -E                Outputs only the results of the preprocessing step.
                     Output defaults to standard output.
+  -fentry-point=<name>
+                    Specify the entry point name for HLSL compilation, for
+                    all subsequent source files.  Default is "main".
+  -flimit=<settings>
+                    Specify resource limits. Each limit is specified by a limit
+                    name followed by an integer value.  Tokens should be
+                    separated by whitespace.  If the same limit is specified
+                    several times, only the last setting takes effect.
+  --show-limits     Display available limit names and their default values.
+  -flimit-file <file>
+                    Set limits as specified in the given file.
   -fshader-stage=<stage>
                     Treat subsequent input files as having stage <stage>.
                     Valid stages are vertex, fragment, tesscontrol, tesseval,
@@ -56,9 +71,9 @@ Options:
   -I <value>        Add directory to include search path.
   -o <file>         Write output to <file>.
                     A file name of '-' represents standard output.
-  -std=<value>      Version and profile for input files. Possible values
+  -std=<value>      Version and profile for GLSL input files. Possible values
                     are concatenations of version and profile, e.g. 310es,
-                    450core, etc.
+                    450core, etc.  Ignored for HLSL files.
   -mfmt=<format>    Output SPIR-V binary code using the selected format. This
                     option may be specified only when the compilation output is
                     in SPIR-V binary code form. Available options include bin, c
@@ -77,7 +92,9 @@ Options:
   -w                Suppresses all warning messages.
   -Werror           Treat all warnings as errors.
   -x <language>     Treat subsequent input files as having type <language>.
-                    The only supported language is glsl.
+                    Valid languages are: glsl, hlsl.
+                    For files ending in .hlsl the default is hlsl.
+                    Otherwise the default is glsl.
 )";
 }
 
@@ -104,14 +121,34 @@ bool GetOptionArgument(int argc, char** argv, int* index,
   }
 }
 
+// Sets resource limits according to the given string. The string
+// should be formated as required for ParseResourceSettings.
+// Returns true on success.  Otherwise returns false and sets err
+// to a descriptive error message.
+bool SetResourceLimits(const std::string& str, shaderc::CompileOptions* options,
+                       std::string* err) {
+  std::vector<glslc::ResourceSetting> settings;
+  if (!ParseResourceSettings(str, &settings, err)) {
+    return false;
+  }
+  for (const auto& setting : settings) {
+    options->SetLimit(setting.limit, setting.value);
+  }
+  return true;
+}
+
 const char kBuildVersion[] =
 #include "build-version.inc"
     ;
 }  // anonymous namespace
 
 int main(int argc, char** argv) {
-  std::vector<std::pair<std::string, shaderc_shader_kind>> input_files;
+  std::vector<glslc::InputFileSpec> input_files;
   shaderc_shader_kind current_fshader_stage = shaderc_glsl_infer_from_source;
+  bool source_language_forced = false;
+  shaderc_source_language current_source_language =
+      shaderc_source_language_glsl;
+  std::string current_entry_point_name("main");
   glslc::FileCompiler compiler;
   bool success = true;
   bool has_stdin_input = false;
@@ -120,6 +157,20 @@ int main(int argc, char** argv) {
     const string_piece arg = argv[i];
     if (arg == "--help") {
       ::PrintHelp(&std::cout);
+      return 0;
+    } else if (arg == "--show-limits") {
+      shaderc_util::Compiler default_compiler;
+// The static cast here depends on us keeping the shaderc_limit enum in
+// lockstep with the shaderc_util::Compiler::Limit enum.  The risk of mismatch
+// is low since both are generated from the same resources.inc file.
+#define RESOURCE(NAME, FIELD, ENUM)                            \
+  std::cout << #NAME << " "                                    \
+            << default_compiler.GetLimit(                      \
+                   static_cast<shaderc_util::Compiler::Limit>( \
+                       shaderc_limit_##ENUM))                  \
+            << std::endl;
+#include "libshaderc_util/resources.inc"
+#undef RESOURCE
       return 0;
     } else if (arg == "--version") {
       std::cout << kBuildVersion << std::endl;
@@ -141,6 +192,37 @@ int main(int argc, char** argv) {
       if (current_fshader_stage == shaderc_glsl_infer_from_source) {
         std::cerr << "glslc: error: stage not recognized: '" << stage << "'"
                   << std::endl;
+        return 1;
+      }
+    } else if (arg.starts_with("-fentry-point=")) {
+      current_entry_point_name =
+          arg.substr(std::strlen("-fentry-point=")).str();
+    } else if (arg.starts_with("-flimit=")) {
+      std::string err;
+      if (!SetResourceLimits(arg.substr(std::strlen("-flimit=")).str(),
+                             &compiler.options(), &err)) {
+        std::cerr << "glslc: error: -flimit error: " << err << std::endl;
+        return 1;
+      }
+    } else if (arg.starts_with("-flimit-file")) {
+      std::string err;
+      string_piece limits_file;
+      if (!GetOptionArgument(argc, argv, &i, "-flimit-file", &limits_file)) {
+        std::cerr << "glslc: error: argument to '-flimit-file' is missing"
+                  << std::endl;
+        return 1;
+      }
+      std::vector<char> contents;
+      if (!shaderc_util::ReadFile(limits_file.str(), &contents)) {
+        std::cerr << "glslc: cannot read limits file: " << limits_file
+                  << std::endl;
+        return 1;
+      }
+      if (!SetResourceLimits(
+              string_piece(contents.data(), contents.data() + contents.size())
+                  .str(),
+              &compiler.options(), &err)) {
+        std::cerr << "glslc: error: -flimit-file error: " << err << std::endl;
         return 1;
       }
     } else if (arg.starts_with("-std=")) {
@@ -196,11 +278,16 @@ int main(int argc, char** argv) {
             << std::endl;
         success = false;
       } else {
-        if (option_arg != "glsl") {
+        if (option_arg == "glsl") {
+          current_source_language = shaderc_source_language_glsl;
+        } else if (option_arg == "hlsl") {
+          current_source_language = shaderc_source_language_hlsl;
+        } else {
           std::cerr << "glslc: error: language not recognized: '" << option_arg
                     << "'" << std::endl;
           return 1;
         }
+        source_language_forced = true;
       }
     } else if (arg == "-c") {
       compiler.SetIndividualCompilationFlag();
@@ -329,15 +416,22 @@ int main(int argc, char** argv) {
         has_stdin_input = true;
       }
 
+      const auto language = source_language_forced
+                                ? current_source_language
+                                : ((glslc::GetFileExtension(arg) == "hlsl")
+                                       ? shaderc_source_language_hlsl
+                                       : shaderc_source_language_glsl);
+
       // If current_fshader_stage is shaderc_glsl_infer_from_source, that means
       // we didn't set forced shader kinds (otherwise an error should have
       // already been emitted before). So we should deduce the shader kind
       // from the file name. If current_fshader_stage is specifed to one of
       // the forced shader kinds, use that for the following compilation.
-      input_files.emplace_back(
-          arg.str(), current_fshader_stage == shaderc_glsl_infer_from_source
-                         ? glslc::DeduceDefaultShaderKindFromFileName(arg)
-                         : current_fshader_stage);
+      input_files.emplace_back(glslc::InputFileSpec{
+          arg.str(), (current_fshader_stage == shaderc_glsl_infer_from_source
+                          ? glslc::DeduceDefaultShaderKindFromFileName(arg)
+                          : current_fshader_stage),
+          language, current_entry_point_name});
     }
   }
 
@@ -346,10 +440,7 @@ int main(int argc, char** argv) {
   if (!success) return 1;
 
   for (const auto& input_file : input_files) {
-    const std::string& name = input_file.first;
-    const shaderc_shader_kind stage = input_file.second;
-
-    success &= compiler.CompileShaderFile(name, stage);
+    success &= compiler.CompileShaderFile(input_file);
   }
 
   compiler.OutputMessages();

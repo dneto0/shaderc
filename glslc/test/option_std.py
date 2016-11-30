@@ -28,6 +28,11 @@ def core_frag_shader_without_version():
     return 'void main() { int temp = gl_SampleID; }'
 
 
+def hlsl_compute_shader_with_barriers():
+    # Use "main" to avoid the need for -fentry-point
+    return 'void main() { AllMemoryBarrierWithGroupSync(); }'
+
+
 @inside_glslc_testsuite('OptionStd')
 class TestStdNoArg(expect.ErrorMessage):
     """Tests -std alone."""
@@ -69,6 +74,15 @@ class TestMissingVersionButHavingStd(expect.ValidObjectFile):
 
     shader = FileShader(core_frag_shader_without_version(), '.frag')
     glslc_args = ['-c', '-std=450core', shader]
+
+
+@inside_glslc_testsuite('OptionStd')
+class TestStdIgnoredInHlsl(expect.ValidObjectFile):
+    """Tests HLSL compilation ignores -std."""
+
+    # Compute shaders are not available in OpenGL 150
+    shader = FileShader(hlsl_compute_shader_with_barriers(), '.comp')
+    glslc_args = ['-c', '-x', 'hlsl', '-std=150', shader]
 
 
 @inside_glslc_testsuite('OptionStd')

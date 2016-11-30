@@ -48,6 +48,7 @@ include $(CLEAR_VARS)
 LOCAL_MODULE:=HLSL
 LOCAL_CXXFLAGS:=-std=c++11 -fno-exceptions -fno-rtti
 LOCAL_SRC_FILES:= \
+		hlsl/hlslAttributes.cpp \
 		hlsl/hlslGrammar.cpp \
 		hlsl/hlslOpMap.cpp \
 		hlsl/hlslParseables.cpp \
@@ -176,11 +177,11 @@ LOCAL_SRC_FILES:= \
 		source/diagnostic.cpp \
 		source/disassemble.cpp \
 		source/ext_inst.cpp \
-		source/instruction.cpp \
 		source/libspirv.cpp \
 		source/name_mapper.cpp \
 		source/opcode.cpp \
 		source/operand.cpp \
+		source/parsed_operand.cpp \
 		source/print.cpp \
 		source/software_version.cpp \
 		source/spirv_endian.cpp \
@@ -189,13 +190,14 @@ LOCAL_SRC_FILES:= \
 		source/text.cpp \
 		source/text_handler.cpp \
 		source/util/parse_number.cpp \
-		source/val/BasicBlock.cpp \
-		source/val/Construct.cpp \
-		source/val/Function.cpp \
-		source/val/Instruction.cpp \
-		source/val/ValidationState.cpp \
+		source/val/basic_block.cpp \
+		source/val/construct.cpp \
+		source/val/function.cpp \
+		source/val/instruction.cpp \
+		source/val/validation_state.cpp \
 		source/validate.cpp \
 		source/validate_cfg.cpp \
+		source/validate_datarules.cpp \
 		source/validate_id.cpp \
 		source/validate_instruction.cpp \
 		source/validate_layout.cpp

@@ -16,7 +16,7 @@
 
 #include <sstream>
 
-#include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #include "death_test.h"
 #include "libshaderc_util/counting_includer.h"
@@ -24,6 +24,8 @@
 namespace {
 
 using shaderc_util::Compiler;
+using ::testing::HasSubstr;
+using ::testing::Eq;
 
 // A trivial vertex shader
 const char kVertexShader[] =
@@ -77,6 +79,11 @@ const std::string kValuelessPredefinitionShader =
     "#error\n"
     "#endif";
 
+// An HLSL vertex shader.
+const char kHlslVertexShader[] =
+    R"(float4 EntryPoint(uint index : SV_VERTEXID) : SV_POSITION
+       { return float4(1.0, 2.0, 3.0, 4.0); })";
+
 // A CountingIncluder that never returns valid content for a requested
 // file inclusion.
 class DummyCountingIncluder : public shaderc_util::CountingIncluder {
@@ -100,18 +107,14 @@ class CompilerTest : public testing::Test {
   // shader stage.
   bool SimpleCompilationSucceedsForOutputType(
       std::string source, EShLanguage stage, Compiler::OutputType output_type) {
-    std::function<EShLanguage(std::ostream*, const shaderc_util::string_piece&)>
-        stage_callback = [](std::ostream*, const shaderc_util::string_piece&) {
-          return EShLangCount;
-        };
     std::stringstream errors;
     size_t total_warnings = 0;
     size_t total_errors = 0;
-    shaderc_util::GlslInitializer initializer;
+    shaderc_util::GlslangInitializer initializer;
     bool result = false;
     DummyCountingIncluder dummy_includer;
     std::tie(result, std::ignore, std::ignore) = compiler_.Compile(
-        source, stage, "shader", stage_callback, dummy_includer,
+        source, stage, "shader", "main", dummy_stage_callback_, dummy_includer,
         Compiler::OutputType::SpirvBinary, &errors, &total_warnings,
         &total_errors, &initializer);
     errors_ = errors.str();
@@ -129,6 +132,11 @@ class CompilerTest : public testing::Test {
   Compiler compiler_;
   // The error string from the most recent compilation.
   std::string errors_;
+  std::function<EShLanguage(std::ostream*, const shaderc_util::string_piece&)>
+      dummy_stage_callback_ =
+          [](std::ostream*, const shaderc_util::string_piece&) {
+            return EShLangCount;
+          };
 };
 
 TEST_F(CompilerTest, SimpleVertexShaderCompilesSuccessfullyToBinary) {
@@ -310,5 +318,116 @@ INSTANTIATE_TEST_CASE_P(
         {"12345678", {0x34333231, 0x38373635, 0x00000000}},
         {"123456789", {0x34333231, 0x38373635, 0x00000039}},
     }));
+
+TEST_F(CompilerTest, SetSourceLanguageToGLSLSucceeds) {
+  compiler_.SetSourceLanguage(Compiler::SourceLanguage::GLSL);
+  EXPECT_TRUE(SimpleCompilationSucceeds(kVulkanVertexShader, EShLangVertex));
+}
+
+TEST_F(CompilerTest, SetSourceLanguageToGLSLFailsOnHLSL) {
+  compiler_.SetSourceLanguage(Compiler::SourceLanguage::GLSL);
+  EXPECT_FALSE(SimpleCompilationSucceeds(kHlslVertexShader, EShLangVertex));
+}
+
+TEST_F(CompilerTest, SetSourceLanguageToHLSLSucceeds) {
+  compiler_.SetSourceLanguage(Compiler::SourceLanguage::HLSL);
+  EXPECT_TRUE(SimpleCompilationSucceeds(kHlslVertexShader, EShLangVertex))
+      << errors_;
+}
+
+TEST_F(CompilerTest, SetSourceLanguageToHLSLFailsOnGLSL) {
+  compiler_.SetSourceLanguage(Compiler::SourceLanguage::HLSL);
+  EXPECT_FALSE(SimpleCompilationSucceeds(kVulkanVertexShader, EShLangVertex));
+}
+
+TEST_F(CompilerTest, EntryPointParameterTakesEffectForHLSL) {
+  compiler_.SetSourceLanguage(Compiler::SourceLanguage::HLSL);
+  std::stringstream errors;
+  size_t total_warnings = 0;
+  size_t total_errors = 0;
+  shaderc_util::GlslangInitializer initializer;
+  bool result = false;
+  DummyCountingIncluder dummy_includer;
+  std::vector<uint32_t> words;
+  std::tie(result, words, std::ignore) =
+      compiler_.Compile(kHlslVertexShader, EShLangVertex, "shader",
+                        "EntryPoint", dummy_stage_callback_, dummy_includer,
+                        Compiler::OutputType::SpirvAssemblyText, &errors,
+                        &total_warnings, &total_errors, &initializer);
+  EXPECT_TRUE(result);
+  std::string assembly(reinterpret_cast<char*>(words.data()));
+  EXPECT_THAT(assembly,
+              HasSubstr("OpEntryPoint Vertex %EntryPoint \"EntryPoint\""))
+      << assembly;
+}
+
+// A test case for setting resource limits.
+struct SetLimitCase {
+  Compiler::Limit limit;
+  int default_value;
+  int value;
+};
+
+using LimitTest = testing::TestWithParam<SetLimitCase>;
+
+TEST_P(LimitTest, Sample) {
+  Compiler compiler;
+  EXPECT_THAT(compiler.GetLimit(GetParam().limit),
+              Eq(GetParam().default_value));
+  compiler.SetLimit(GetParam().limit, GetParam().value);
+  EXPECT_THAT(compiler.GetLimit(GetParam().limit), Eq(GetParam().value));
+}
+
+#define CASE(LIMIT, DEFAULT, NEW) \
+  { Compiler::Limit::LIMIT, DEFAULT, NEW }
+INSTANTIATE_TEST_CASE_P(
+    CompilerTest, LimitTest,
+    // See resources.cc for the defaults.
+    testing::ValuesIn(std::vector<SetLimitCase>{
+        // clang-format off
+        // This is just a sampling of the possible values.
+        CASE(MaxLights, 8, 99),
+        CASE(MaxClipPlanes, 6, 10929),
+        CASE(MaxTessControlAtomicCounters, 0, 72),
+        CASE(MaxSamples, 4, 8),
+        // clang-format on
+    }), );
+#undef CASE
+
+// Returns a fragment shader accessing a texture with the given
+// offset.
+std::string ShaderWithTexOffset(int offset) {
+  std::ostringstream oss;
+  oss << "#version 150\n"
+         "uniform sampler1D tex;\n"
+         "void main() { vec4 x = textureOffset(tex, 1.0, "
+      << offset << "); }\n";
+  return oss.str();
+}
+
+// Ensure compilation is sensitive to limit setting.  Sample just
+// two particular limits.  The default minimum texel offset is -8,
+// and the default maximum texel offset is 7.
+TEST_F(CompilerTest, TexelOffsetDefaults) {
+  const EShLanguage stage = EShLangFragment;
+  EXPECT_FALSE(SimpleCompilationSucceeds(ShaderWithTexOffset(-9), stage));
+  EXPECT_TRUE(SimpleCompilationSucceeds(ShaderWithTexOffset(-8), stage));
+  EXPECT_TRUE(SimpleCompilationSucceeds(ShaderWithTexOffset(7), stage));
+  EXPECT_FALSE(SimpleCompilationSucceeds(ShaderWithTexOffset(8), stage));
+}
+
+TEST_F(CompilerTest, TexelOffsetLowerTheMinimum) {
+  const EShLanguage stage = EShLangFragment;
+  compiler_.SetLimit(Compiler::Limit::MinProgramTexelOffset, -99);
+  EXPECT_FALSE(SimpleCompilationSucceeds(ShaderWithTexOffset(-100), stage));
+  EXPECT_TRUE(SimpleCompilationSucceeds(ShaderWithTexOffset(-99), stage));
+}
+
+TEST_F(CompilerTest, TexelOffsetRaiseTheMaximum) {
+  const EShLanguage stage = EShLangFragment;
+  compiler_.SetLimit(Compiler::Limit::MaxProgramTexelOffset, 100);
+  EXPECT_TRUE(SimpleCompilationSucceeds(ShaderWithTexOffset(100), stage));
+  EXPECT_FALSE(SimpleCompilationSucceeds(ShaderWithTexOffset(101), stage));
+}
 
 }  // anonymous namespace

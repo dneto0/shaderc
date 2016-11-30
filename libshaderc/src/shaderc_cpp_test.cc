@@ -19,6 +19,7 @@
 #include <unordered_map>
 
 #include "SPIRV/spirv.hpp"
+#include "spirv-tools/libspirv.hpp"
 
 #include "common_shaders_for_test.h"
 #include "shaderc/shaderc.hpp"
@@ -1013,6 +1014,138 @@ TEST_F(CppInterface, BeginAndEndOnPreprocessedResult) {
   const std::string string_via_begin_end(compilation_result.begin(),
                                          compilation_result.end());
   EXPECT_THAT(string_via_begin_end, Eq(forced_to_be_a_string));
+}
+
+TEST_F(CppInterface, SourceLangGlslMinimalGlslVertexShaderSucceeds) {
+  options_.SetSourceLanguage(shaderc_source_language_glsl);
+  EXPECT_TRUE(CompilationSuccess(kVertexOnlyShader, shaderc_glsl_vertex_shader,
+                                 options_));
+}
+
+TEST_F(CppInterface, SourceLangGlslMinimalHlslVertexShaderFails) {
+  options_.SetSourceLanguage(shaderc_source_language_glsl);
+  EXPECT_FALSE(CompilationSuccess(kMinimalHlslShader,
+                                  shaderc_glsl_vertex_shader, options_));
+}
+
+TEST_F(CppInterface, SourceLangHlslMinimalGlslVertexShaderFails) {
+  options_.SetSourceLanguage(shaderc_source_language_hlsl);
+  EXPECT_FALSE(CompilationSuccess(kVertexOnlyShader, shaderc_glsl_vertex_shader,
+                                  options_));
+}
+
+TEST_F(CppInterface, SourceLangHlslMinimalHlslVertexShaderSucceeds) {
+  options_.SetSourceLanguage(shaderc_source_language_hlsl);
+  EXPECT_TRUE(CompilationSuccess(kMinimalHlslShader, shaderc_glsl_vertex_shader,
+                                 options_));
+}
+
+TEST(
+    EntryPointTest,
+    SourceLangHlslMinimalHlslVertexShaderAsConstCharPtrSucceedsWithEntryPointName) {
+  shaderc::Compiler compiler;
+  CompileOptions options;
+  options.SetSourceLanguage(shaderc_source_language_hlsl);
+  auto result = compiler.CompileGlslToSpv(
+      kMinimalHlslShader, strlen(kMinimalHlslShader),
+      shaderc_glsl_vertex_shader, "shader", "EntryPoint", options);
+  std::vector<uint32_t> binary(result.begin(), result.end());
+  std::string assembly;
+  spvtools::SpirvTools(SPV_ENV_UNIVERSAL_1_0).Disassemble(binary, &assembly);
+  EXPECT_THAT(assembly,
+              HasSubstr("OpEntryPoint Vertex %EntryPoint \"EntryPoint\""))
+      << assembly;
+}
+
+TEST(
+    EntryPointTest,
+    SourceLangHlslMinimalHlslVertexShaderAsStdStringSucceedsWithEntryPointName) {
+  shaderc::Compiler compiler;
+  CompileOptions options;
+  options.SetSourceLanguage(shaderc_source_language_hlsl);
+  std::string shader(kMinimalHlslShader);
+  auto result = compiler.CompileGlslToSpv(shader, shaderc_glsl_vertex_shader,
+                                          "shader", "EntryPoint", options);
+  std::vector<uint32_t> binary(result.begin(), result.end());
+  std::string assembly;
+  spvtools::SpirvTools(SPV_ENV_UNIVERSAL_1_0).Disassemble(binary, &assembly);
+  EXPECT_THAT(assembly,
+              HasSubstr("OpEntryPoint Vertex %EntryPoint \"EntryPoint\""))
+      << assembly;
+}
+
+TEST(
+    EntryPointTest,
+    SourceLangHlslMinimalHlslVertexShaderAsConstCharPtrSucceedsToAssemblyWithEntryPointName) {
+  shaderc::Compiler compiler;
+  CompileOptions options;
+  options.SetSourceLanguage(shaderc_source_language_hlsl);
+  auto assembly = compiler.CompileGlslToSpvAssembly(
+      kMinimalHlslShader, strlen(kMinimalHlslShader),
+      shaderc_glsl_vertex_shader, "shader", "EntryPoint", options);
+  EXPECT_THAT(std::string(assembly.begin(), assembly.end()),
+              HasSubstr("OpEntryPoint Vertex %EntryPoint \"EntryPoint\""));
+}
+
+TEST(
+    EntryPointTest,
+    SourceLangHlslMinimalHlslVertexShaderAsStdStringSucceedsToAssemblyWithEntryPointName) {
+  shaderc::Compiler compiler;
+  CompileOptions options;
+  options.SetSourceLanguage(shaderc_source_language_hlsl);
+  std::string shader(kMinimalHlslShader);
+  auto assembly = compiler.CompileGlslToSpvAssembly(
+      shader, shaderc_glsl_vertex_shader, "shader", "EntryPoint", options);
+  EXPECT_THAT(std::string(assembly.begin(), assembly.end()),
+              HasSubstr("OpEntryPoint Vertex %EntryPoint \"EntryPoint\""));
+}
+
+// Returns a fragment shader accessing a texture with the given
+// offset.
+std::string ShaderWithTexOffset(int offset) {
+  std::ostringstream oss;
+  oss <<
+    "#version 150\n"
+    "uniform sampler1D tex;\n"
+    "void main() { vec4 x = textureOffset(tex, 1.0, " << offset << "); }\n";
+  return oss.str();
+}
+
+// Ensure compilation is sensitive to limit setting.  Sample just
+// two particular limits.
+TEST_F(CppInterface, LimitsTexelOffsetDefault) {
+  EXPECT_FALSE(CompilationSuccess(ShaderWithTexOffset(-9).c_str(),
+                                  shaderc_glsl_fragment_shader,
+                                  options_));
+  EXPECT_TRUE(CompilationSuccess(ShaderWithTexOffset(-8).c_str(),
+                                 shaderc_glsl_fragment_shader,
+                                 options_));
+  EXPECT_TRUE(CompilationSuccess(ShaderWithTexOffset(7).c_str(),
+                                 shaderc_glsl_fragment_shader,
+                                 options_));
+  EXPECT_FALSE(CompilationSuccess(ShaderWithTexOffset(8).c_str(),
+                                  shaderc_glsl_fragment_shader,
+                                  options_));
+}
+
+TEST_F(CppInterface, LimitsTexelOffsetLowerMinimum) {
+  options_.SetLimit(shaderc_limit_min_program_texel_offset, -99);
+  EXPECT_FALSE(CompilationSuccess(ShaderWithTexOffset(-100).c_str(),
+                                  shaderc_glsl_fragment_shader,
+                                  options_));
+  EXPECT_TRUE(CompilationSuccess(ShaderWithTexOffset(-99).c_str(),
+                                 shaderc_glsl_fragment_shader,
+                                 options_));
+}
+
+TEST_F(CppInterface, LimitsTexelOffsetHigherMaximum) {
+  options_.SetLimit(shaderc_limit_max_program_texel_offset, 10);
+  EXPECT_TRUE(CompilationSuccess(ShaderWithTexOffset(10).c_str(),
+                                 shaderc_glsl_fragment_shader,
+                                 options_));
+  EXPECT_FALSE(CompilationSuccess(ShaderWithTexOffset(11).c_str(),
+                                  shaderc_glsl_fragment_shader,
+                                  options_));
 }
 
 }  // anonymous namespace
