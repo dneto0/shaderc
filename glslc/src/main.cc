@@ -18,7 +18,9 @@
 #include <cstring>
 #include <iostream>
 #include <list>
+#include <tuple>
 #include <string>
+#include <sstream>
 #include <utility>
 
 #include "libshaderc_util/compiler.h"
@@ -53,6 +55,18 @@ Options:
                     Automatically assign bindings to uniform variables that
                     don't have an explicit 'binding' layout in the shader
                     source.
+  -fimage-binding-base=<value>
+                    Sets the lowest automatically assigned binding number for
+                    images.
+  -ftexture-binding-base=<value>
+                    Sets the lowest automatically assigned binding number for
+                    textures.
+  -fsampler-binding-base=<value>
+                    Sets the lowest automatically assigned binding number for
+                    samplers.
+  -fubo-binding-base=<value>
+                    Sets the lowest automatically assigned binding number for
+                    uniform buffer objects (UBO).
   -fentry-point=<name>
                     Specify the entry point name for HLSL compilation, for
                     all subsequent source files.  Default is "main".
@@ -144,6 +158,19 @@ bool SetResourceLimits(const std::string& str, shaderc::CompileOptions* options,
 const char kBuildVersion[] =
 #include "build-version.inc"
     ;
+
+// Parses the given string as a number of the specified type.  Returns a pair
+// where the first member is true if parsing succeeded, and the second
+// member is the parsed value.
+template <typename T>
+std::pair<bool, T> ParseNumber(std::string str) {
+  std::istringstream iss(str);
+  T parsed_number{};
+  iss >> parsed_number;
+  const bool ok = !iss.fail() && iss.eof();
+  return std::make_pair(ok, parsed_number);
+}
+
 }  // anonymous namespace
 
 int main(int argc, char** argv) {
@@ -200,6 +227,50 @@ int main(int argc, char** argv) {
       }
     } else if (arg == "-fauto-bind-uniforms") {
       compiler.options().SetAutoBindUniforms(true);
+    } else if (arg.starts_with("-fimage-binding-base=")) {
+      auto result = ParseNumber<uint32_t>(
+          arg.substr(std::strlen("-fimage-binding-base=")).str());
+      if (result.first) {
+        compiler.options().SetBindingBase(shaderc_uniform_kind_image,
+                                          result.second);
+      } else {
+        std::cerr << "glslc: error: invalid value for -fimage-binding-base"
+                  << std::endl;
+        return 1;
+      }
+    } else if (arg.starts_with("-ftexture-binding-base=")) {
+      auto result = ParseNumber<uint32_t>(
+          arg.substr(std::strlen("-ftexture-binding-base=")).str());
+      if (result.first) {
+        compiler.options().SetBindingBase(shaderc_uniform_kind_texture,
+                                          result.second);
+      } else {
+        std::cerr << "glslc: error: invalid value for -ftexture-binding-base"
+                  << std::endl;
+        return 1;
+      }
+    } else if (arg.starts_with("-fsampler-binding-base=")) {
+      auto result = ParseNumber<uint32_t>(
+          arg.substr(std::strlen("-fsampler-binding-base=")).str());
+      if (result.first) {
+        compiler.options().SetBindingBase(shaderc_uniform_kind_sampler,
+                                          result.second);
+      } else {
+        std::cerr << "glslc: error: invalid value for -fsampler-binding-base"
+                  << std::endl;
+        return 1;
+      }
+    } else if (arg.starts_with("-fubo-binding-base=")) {
+      auto result = ParseNumber<uint32_t>(
+          arg.substr(std::strlen("-fubo-binding-base=")).str());
+      if (result.first) {
+        compiler.options().SetBindingBase(shaderc_uniform_kind_buffer,
+                                          result.second);
+      } else {
+        std::cerr << "glslc: error: invalid value for -fubo-binding-base"
+                  << std::endl;
+        return 1;
+      }
     } else if (arg.starts_with("-fentry-point=")) {
       current_entry_point_name =
           arg.substr(std::strlen("-fentry-point=")).str();
