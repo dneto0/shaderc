@@ -152,6 +152,7 @@ a `binding` layout qualifier.  For example:
 layout(binding = 12) uniform texture2D;
 ----
 
+<<<<<<< HEAD
 [[option-f-hlsl-iomap]]
 ==== `-fhlsl-iomap`
 
@@ -217,6 +218,31 @@ automatically assigned binding for Unordered Access Views (UAV).
 If a stage is specified, only affects the specified stage.
 
 This only affects HLSL compilation.
+=======
+[[option-f-image-binding-base]]
+==== `-fimage-binding-base=value`
+
+Sets the lowest automatically assigned binding number for images.
+The default is 0.
+
+[[option-f-sampler-binding-base]]
+==== `-fsampler-binding-base=value`
+
+Sets the lowest automatically assigned binding number for samplers.
+The default is 0.
+
+[[option-f-texture-binding-base]]
+==== `-ftexture-binding-base=value`
+
+Sets the lowest automatically assigned binding number for textures.
+The default is 0.
+
+[[option-f-ubo-binding-base]]
+==== `-fubo-binding-base=value`
+
+Sets the lowest automatically assigned binding number for uniform buffer objects (UBO).
+The default is 0.
+>>>>>>> Add glslc options to set binding base numbers
 
 [[option-f-entry-point]]
 ==== `-fentry-point=`
