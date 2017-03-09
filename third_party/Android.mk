@@ -116,8 +116,7 @@ SPVHEADERS_LOCAL_PATH := $(THIRD_PARTY_PATH)/spirv-tools/external/spirv-headers
 SPV_CORE10_GRAMMAR=$(SPVHEADERS_LOCAL_PATH)/include/spirv/1.0/spirv.core.grammar.json
 SPV_CORE11_GRAMMAR=$(SPVHEADERS_LOCAL_PATH)/include/spirv/1.1/spirv.core.grammar.json
 SPV_GLSL_GRAMMAR=$(SPVHEADERS_LOCAL_PATH)/include/spirv/1.0/extinst.glsl.std.450.grammar.json
-# OpenCL grammar has not yet been published to SPIRV-Headers
-SPV_OPENCL_GRAMMAR=$(SPVTOOLS_LOCAL_PATH)/source/extinst-1.0.opencl.std.grammar.json
+SPV_OPENCL_GRAMMAR=$(SPVHEADERS_LOCAL_PATH)/include/spirv/1.0/extinst.opencl.std.100.grammar.json
 
 define gen_spvtools_grammar_tables
 $(call generate-file-dir,$(1)/core.insts-1.0.inc)
@@ -215,7 +214,8 @@ LOCAL_SRC_FILES:= \
 		source/validate_decorations.cpp \
 		source/validate_id.cpp \
 		source/validate_instruction.cpp \
-		source/validate_layout.cpp
+		source/validate_layout.cpp \
+		source/validate_type_unique.cpp
 include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
