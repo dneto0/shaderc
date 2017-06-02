@@ -48,7 +48,8 @@ const char kValuelessPredefinitionShader[] =
 // when generating SPIR-V.
 const char kDeprecatedAttributeShader[] =
     "#version 140\n"
-    "attribute float x;\n"
+    "#extension GL_ARB_separate_shader_objects : enable\n"
+    "layout(location = 5) attribute float x;\n"
     "void main() {}\n";
 
 // By default the compiler will emit a warning as version 550 is an unknown
@@ -78,11 +79,12 @@ const char kTwoErrorsShader[] =
     "#error\n"
     "void main(){}\n";
 
-// Compiler should generate two warnings.
-const char kTwoWarningsShader[] =
-    "#version 140\n"
-    "attribute float x;\n"
-    "attribute float y;\n"
+// Compiler should generate two warnings when compiled as vertex.
+const char kOneWarningsShader[] =
+    "#version 400\n" // Global warning about incomplete language coverage.
+    "#extension GL_ARB_separate_shader_objects : enable\n"
+    // Local warning: Cause a deprectated attribute feature.
+    "layout(location = 6) attribute float f;\n"
     "void main(){}\n";
 
 // A shader that compiles under OpenGL compatibility profile rules,

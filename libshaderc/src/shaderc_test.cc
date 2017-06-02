@@ -389,11 +389,12 @@ TEST_F(CompileStringTest, GetNumErrors) {
 }
 
 TEST_F(CompileStringTest, GetNumWarnings) {
-  Compilation comp(compiler_.get_compiler_handle(), kTwoWarningsShader,
+  Compilation comp(compiler_.get_compiler_handle(), kOneWarningsShader,
                    shaderc_glsl_vertex_shader, "shader", "main");
   // Expects compilation success with two warnings.
   EXPECT_TRUE(CompilationResultIsSuccess(comp.result()));
-  EXPECT_EQ(2u, shaderc_result_get_num_warnings(comp.result()));
+  EXPECT_EQ(1u, shaderc_result_get_num_warnings(comp.result()))
+      << shaderc_result_get_error_message(comp.result());
   // Expects the number of errors to be zero.
   EXPECT_EQ(0u, shaderc_result_get_num_errors(comp.result()));
 }
@@ -958,7 +959,7 @@ TEST_F(CompileStringWithOptionsTest, WarningsOnLine) {
   EXPECT_THAT(
       CompilationMessages(kDeprecatedAttributeShader,
                           shaderc_glsl_vertex_shader, options_.get()),
-      HasSubstr(":2: warning: attribute deprecated in version 130; may be "
+      HasSubstr(":3: warning: attribute deprecated in version 130; may be "
                 "removed in future release\n"));
 }
 
@@ -968,7 +969,7 @@ TEST_F(CompileStringWithOptionsTest, WarningsOnLineAsErrors) {
   EXPECT_THAT(
       CompilationErrors(kDeprecatedAttributeShader, shaderc_glsl_vertex_shader,
                         options_.get()),
-      HasSubstr(":2: error: attribute deprecated in version 130; may be "
+      HasSubstr(":3: error: attribute deprecated in version 130; may be "
                 "removed in future release\n"));
 }
 
@@ -978,7 +979,7 @@ TEST_F(CompileStringWithOptionsTest, SuppressWarningsOnLine) {
   EXPECT_THAT(
       CompilationMessages(kDeprecatedAttributeShader,
                           shaderc_glsl_vertex_shader, options_.get()),
-      Not(HasSubstr(":2: warning: attribute deprecated in version 130; may be "
+      Not(HasSubstr(":3: warning: attribute deprecated in version 130; may be "
                     "removed in future release\n")));
 }
 

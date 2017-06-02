@@ -111,8 +111,10 @@ class CppInterface : public testing::Test {
       const CompileOptions& options) {
     const auto compilation_result =
         compiler_.CompileGlslToSpv(shader, kind, "shader", options);
-    EXPECT_TRUE(CompilationResultIsSuccess(compilation_result)) << kind << '\n'
-                                                                << shader;
+    EXPECT_TRUE(CompilationResultIsSuccess(compilation_result))
+        << kind << '\n'
+        << shader << '\n'
+        << compilation_result.GetErrorMessage();
     return compilation_result.GetErrorMessage();
   }
 
@@ -569,10 +571,10 @@ TEST_F(CppInterface, GetNumErrors) {
 
 TEST_F(CppInterface, GetNumWarnings) {
   const SpvCompilationResult compilation_result =
-      compiler_.CompileGlslToSpv(kTwoWarningsShader, strlen(kTwoWarningsShader),
+      compiler_.CompileGlslToSpv(kOneWarningsShader, strlen(kOneWarningsShader),
                                  shaderc_glsl_vertex_shader, "shader");
   EXPECT_TRUE(CompilationResultIsSuccess(compilation_result));
-  EXPECT_EQ(2u, compilation_result.GetNumWarnings());
+  EXPECT_EQ(1u, compilation_result.GetNumWarnings());
   EXPECT_EQ(0u, compilation_result.GetNumErrors());
 }
 
@@ -841,7 +843,7 @@ TEST_F(CppInterface, WarningsOnLine) {
   EXPECT_THAT(
       CompilationWarnings(kDeprecatedAttributeShader,
                           shaderc_glsl_vertex_shader, CompileOptions()),
-      HasSubstr(":2: warning: attribute deprecated in version 130; may be "
+      HasSubstr(":3: warning: attribute deprecated in version 130; may be "
                 "removed in future release\n"));
 }
 
@@ -871,7 +873,7 @@ TEST_F(CppInterface, WarningsOnLineAsErrors) {
   EXPECT_THAT(
       CompilationErrors(kDeprecatedAttributeShader, shaderc_glsl_vertex_shader,
                         options_),
-      HasSubstr(":2: error: attribute deprecated in version 130; may be "
+      HasSubstr(":3: error: attribute deprecated in version 130; may be "
                 "removed in future release\n"));
 }
 
@@ -884,7 +886,7 @@ TEST_F(CppInterface, WarningsOnLineAsErrorsClonedOptions) {
   EXPECT_THAT(
       CompilationErrors(kDeprecatedAttributeShader, shaderc_glsl_vertex_shader,
                         cloned_options),
-      HasSubstr(":2: error: attribute deprecated in version 130; may be "
+      HasSubstr(":3: error: attribute deprecated in version 130; may be "
                 "removed in future release\n"));
 }
 
