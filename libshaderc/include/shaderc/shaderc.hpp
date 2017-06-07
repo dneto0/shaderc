@@ -254,6 +254,12 @@ class CompileOptions {
     shaderc_compile_options_set_auto_bind_uniforms(options_, auto_bind);
   }
 
+  // Sets whether the compiler should use HLSL IO mapping rules for bindings.
+  // Defaults to false.
+  void SetHlslIoMapping(bool hlsl_iomap) {
+    shaderc_compile_options_set_hlsl_io_mapping(options_, hlsl_iomap);
+  }
+
   // When automatically assigning bindings for uniforms, sets the lowest
   // automatically assigned binding number for uniform resources of the given
   // type.

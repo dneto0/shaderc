@@ -61,25 +61,34 @@ Options:
                     Automatically assign bindings to uniform variables that
                     don't have an explicit 'binding' layout in the shader
                     source.
+  -fhlsl-iomap      Use HLSL IO mappings for bindings.
   -fimage-binding-base [stage] <value>
                     Sets the lowest automatically assigned binding number for
                     images.  Optionally only set it for a single shader stage.
+                    For HLSL, sets one less than the base.
   -ftexture-binding-base [stage] <value>
                     Sets the lowest automatically assigned binding number for
                     textures.  Optionally only set it for a single shader stage.
+                    For HLSL, sets one less than the base.
   -fsampler-binding-base [stage] <value>
                     Sets the lowest automatically assigned binding number for
                     samplers  Optionally only set it for a single shader stage.
+                    For HLSL, sets one less than the base.
   -fubo-binding-base [stage] <value>
                     Sets the lowest automatically assigned binding number for
                     uniform buffer objects (UBO).  Optionally only set it for
                     a single shader stage.
+                    For HLSL, sets one less than the base.
   -fcbuffer-binding-base [stage] <value>
                     Same as -fubo-binding-base.
   -fssbo-binding-base [stage] <value>
                     Sets the lowest automatically assigned binding number for
                     shader storage buffer objects (SSBO).  Optionally only set
                     it for a single shader stage.  Only affects GLSL.
+  -fuav-binding-base [stage] <value>
+                    Sets one less than the lowest automatically assigned binding
+                    number for unordered access views (UAV).  Optionally only
+                    set it for a single shader stage.  Only affects HLSL.
   -fentry-point=<name>
                     Specify the entry point name for HLSL compilation, for
                     all subsequent source files.  Default is "main".
