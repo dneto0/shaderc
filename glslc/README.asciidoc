@@ -198,7 +198,7 @@ For HLSL, sets one less than the base.
 ==== `-fcbuffer-binding-base`
 
 Option `-fcbuffer-binding-base [stage] base` is the same as
-`-fubo-binding-base [stage] base`,
+`-fubo-binding-base [stage] base`.
 
 [[option-f-ssbo-binding-base]]
 ==== `-fssbo-binding-base`
