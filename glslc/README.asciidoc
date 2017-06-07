@@ -216,6 +216,13 @@ Option `-fuav-binding-base [stage] base` sets one less than the lowest
 automatically assigned binding for Unordered Access Views (UAV).
 If a stage is specified, only affects the specified stage.
 
+[[option-f-uav-binding-base]]
+==== `-fuav-binding-base`
+
+Option `-fuav-binding-base [stage] base` sets one less than the lowest
+automatically assigned binding for Unordered Access Views (UAV).
+If a stage is specified, only affects the specified stage.
+
 This only affects HLSL compilation.
 
 [[option-f-entry-point]]
