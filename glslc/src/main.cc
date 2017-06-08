@@ -184,7 +184,7 @@ const char kBuildVersion[] =
 // Parses the given string as a number of the specified type.  Returns a pair
 // where the first member is true if parsing succeeded, and the second
 // member is the parsed value.  (I've worked out the general case for this
-// in SPIRV-Tools source/util/parse_number.h
+// in SPIRV-Tools source/util/parse_number.h. -- dneto)
 std::pair<bool, uint32_t> ParseUint32(std::string str) {
   std::istringstream iss(str);
 
