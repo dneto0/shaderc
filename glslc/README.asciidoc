@@ -26,6 +26,8 @@ glslc [-c|-S|-E]
       [-fcbuffer-binding-base [stage] value]
       [-fssbo-binding-base [stage] value]
       [-fuav-binding-base [stage] value]
+      [-fresource-set-binding [stage] <reg0> <set0> <binding0>
+        [<reg1> <set1> <binding1>...]]
       [-fhlsl-offsets]
       [-fentry-point=...]
       [-flimit=...]
@@ -217,14 +219,18 @@ Option `-fuav-binding-base [stage] base` sets one less than the lowest
 automatically assigned binding for Unordered Access Views (UAV).
 If a stage is specified, only affects the specified stage.
 
-[[option-f-uav-binding-base]]
-==== `-fuav-binding-base`
+This only affects HLSL compilation.
 
-Option `-fuav-binding-base [stage] base` sets one less than the lowest
-automatically assigned binding for Unordered Access Views (UAV).
+[[option-f-register-set-binding]]
+==== `-fresource-set-binding`
+
+Option `-fresource-set-binding [stage] <reg0> <set0> <binding1>` sets
+the descriptor set and binding for an HLSL resource, by register name.
+To specify settings for more registers, append their triples, consisting
+of register name, descriptor set, and binding.
+
 If a stage is specified, only affects the specified stage.
 
-This only affects HLSL compilation.
 
 [[option-f-hlsl-offsets]]
 ==== `-fhlsl-offsets`
