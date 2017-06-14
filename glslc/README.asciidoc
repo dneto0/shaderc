@@ -18,8 +18,17 @@ glslc [--show-limits]
 glslc [-c|-S|-E]
       [-x ...] [-std=standard]
       [-fauto-bind-uniforms]
+      [-fhlsl-iomap]
+      [-fimage-binding-base [stage] value]
+      [-fsampler-binding-base [stage] value]
+      [-ftexture-binding-base [stage] value]
+      [-fubo-binding-base [stage] value]
+      [-fcbuffer-binding-base [stage] value]
+      [-fssbo-binding-base [stage] value]
+      [-fuav-binding-base [stage] value]
       [-fentry-point=...]
       [-flimit=...]
+      [-flimit-file <resource-limits-file>]
       [-fshader-stage=...]
       [--target-env=...]
       [-g]
@@ -143,6 +152,72 @@ a `binding` layout qualifier.  For example:
 layout(binding = 12) uniform texture2D;
 ----
 
+[[option-f-hlsl-iomap]]
+==== `-fhlsl-iomap`
+
+Option `-fhlsl-iomap` directs the compiler to use HLSL register
+assignments as binding values.
+
+[[option-f-image-binding-base]]
+==== `-fimage-binding-base`
+
+Option `-fimage-binding-base [stage] base` sets the lowest automatically
+assigned binding for images.  If a stage is specified, only affects the specified
+stage.
+
+For HLSL, sets one less than the base.
+
+[[option-f-sampler-binding-base]]
+==== `-fsampler-binding-base`
+
+Option `-fsampler-binding-base [stage] base` sets the lowest automatically
+assigned binding for samplers.  If a stage is specified, only affects the specified
+stage.
+
+For HLSL, sets one less than the base.
+
+[[option-f-texture-binding-base]]
+==== `-ftexture-binding-base`
+
+Option `-ftexture-binding-base [stage] base` sets the lowest automatically
+assigned binding for textures.  If a stage is specified, only affects the specified
+stage.
+
+For HLSL, sets one less than the base.
+
+[[option-f-ubo-binding-base]]
+==== `-fubo-binding-base`
+
+Option `-fubo-binding-base [stage] base` sets the lowest automatically
+assigned binding for Uniform Buffer Objects (GLSL) or Cbuffers (HLSL).
+If a stage is specified, only affects the specified stage.
+
+For HLSL, sets one less than the base.
+
+[[option-f-cbuffer-binding-base]]
+==== `-fcbuffer-binding-base`
+
+Option `-fcbuffer-binding-base [stage] base` is the same as
+`-fubo-binding-base [stage] base`.
+
+[[option-f-ssbo-binding-base]]
+==== `-fssbo-binding-base`
+
+Option `-fssbo-binding-base [stage] base` sets the lowest automatically
+assigned binding for Shader Storage Buffer Objects (GLSL).
+If a stage is specified, only affects the specified stage.
+
+This only affects GLSL compilation.
+
+[[option-f-uav-binding-base]]
+==== `-fuav-binding-base`
+
+Option `-fuav-binding-base [stage] base` sets one less than the lowest
+automatically assigned binding for Unordered Access Views (UAV).
+If a stage is specified, only affects the specified stage.
+
+This only affects HLSL compilation.
+
 [[option-f-entry-point]]
 ==== `-fentry-point=`
 
@@ -249,6 +324,10 @@ under Vulkan semantics.
 `-x` lets you specify the language of the input shader files. Valid languages
 are `glsl` and `hlsl`.  If the file extension is `hlsl` then the default language
 is HLSL.  Otherwise the default is 'glsl'.
+
+Note: HLSL compilation will use HLSL packing (offset) rules for variables
+that are vertex shader outputs, and inputs and outputs of both geometry
+and pixel shaders.
 
 [[compilation-stage-selection-options]]
 === Compilation Stage Selection Options

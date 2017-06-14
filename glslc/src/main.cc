@@ -16,9 +16,12 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <list>
+#include <tuple>
 #include <string>
+#include <sstream>
 #include <utility>
 
 #include "libshaderc_util/compiler.h"
@@ -53,6 +56,39 @@ Options:
                     Automatically assign bindings to uniform variables that
                     don't have an explicit 'binding' layout in the shader
                     source.
+  -fhlsl-iomap      Use HLSL IO mappings for bindings.
+  -fimage-binding-base [stage] <value>
+                    Sets the lowest automatically assigned binding number for
+                    images.  Optionally only set it for a single shader stage.
+                    For HLSL, the resource register number is added to this
+                    base.
+  -ftexture-binding-base [stage] <value>
+                    Sets the lowest automatically assigned binding number for
+                    textures.  Optionally only set it for a single shader stage.
+                    For HLSL, the resource register number is added to this
+                    base.
+  -fsampler-binding-base [stage] <value>
+                    Sets the lowest automatically assigned binding number for
+                    samplers  Optionally only set it for a single shader stage.
+                    For HLSL, the resource register number is added to this
+                    base.
+  -fubo-binding-base [stage] <value>
+                    Sets the lowest automatically assigned binding number for
+                    uniform buffer objects (UBO).  Optionally only set it for
+                    a single shader stage.
+                    For HLSL, the resource register number is added to this
+                    base.
+  -fcbuffer-binding-base [stage] <value>
+                    Same as -fubo-binding-base.
+  -fssbo-binding-base [stage] <value>
+                    Sets the lowest automatically assigned binding number for
+                    shader storage buffer objects (SSBO).  Optionally only set
+                    it for a single shader stage.  Only affects GLSL.
+  -fuav-binding-base [stage] <value>
+                    For automatically assigned bindings for unordered access
+                    views (UAV), the register number is added to this base to
+                    determine the binding number.  Optionally only set it for
+                    a single shader stage.  Only affects HLSL.
   -fentry-point=<name>
                     Specify the entry point name for HLSL compilation, for
                     all subsequent source files.  Default is "main".
@@ -66,8 +102,8 @@ Options:
                     Set limits as specified in the given file.
   -fshader-stage=<stage>
                     Treat subsequent input files as having stage <stage>.
-                    Valid stages are vertex, fragment, tesscontrol, tesseval,
-                    geometry, and compute.
+                    Valid stages are vertex, vert, fragment, frag, tesscontrol,
+                    tesc, tesseval, tese, geometry, geom, compute, and comp.
   -g                Generate source-level debug information.
                     Currently this option has no effect.
   --help            Display available options.
@@ -105,7 +141,7 @@ Options:
 // Gets the option argument for the option at *index in argv in a way consistent
 // with clang/gcc. On success, returns true and writes the parsed argument into
 // *option_argument. Returns false if any errors occur. After calling this
-// function, *index will the index of the last command line argument consumed.
+// function, *index will be the index of the last command line argument consumed.
 bool GetOptionArgument(int argc, char** argv, int* index,
                        const std::string& option,
                        string_piece* option_argument) {
@@ -144,6 +180,69 @@ bool SetResourceLimits(const std::string& str, shaderc::CompileOptions* options,
 const char kBuildVersion[] =
 #include "build-version.inc"
     ;
+
+// Parses the given string as a number of the specified type.  Returns a pair
+// where the first member is true if parsing succeeded, and the second
+// member is the parsed value.  (I've worked out the general case for this
+// in SPIRV-Tools source/util/parse_number.h. -- dneto)
+std::pair<bool, uint32_t> ParseUint32(std::string str) {
+  std::istringstream iss(str);
+
+  iss >> std::setbase(0);
+  uint32_t parsed_number{};
+  iss >> parsed_number;
+
+  // We should have read something.
+  bool ok = !str.empty() && !iss.bad();
+  // It should have been all the text.
+  ok = ok && iss.eof();
+  // It should have been in range.
+  ok = ok && !iss.fail();
+
+  // Work around a bugs in various C++ standard libraries.
+  // Count any negative number as an error, including "-0".
+  ok = ok && (str[0] != '-');
+
+  return std::make_pair(ok, parsed_number);
+}
+
+// Gets an optional stage name followed by required offset argument.  Returns
+// false and emits a message to *errs if any errors occur.  After calling this
+// function, *index will be the index of the last command line argument
+// consumed.  If no stage name is provided, then *stage contains
+// shaderc_glsl_infer_from_source.
+bool GetOptionalStageThenOffsetArgument(const shaderc_util::string_piece option,
+                                        std::ostream* errs, int argc,
+                                        char** argv, int* index,
+                                        shaderc_shader_kind* shader_kind,
+                                        uint32_t* offset) {
+  int& argi = *index;
+  if (argi + 1 >= argc) {
+    *errs << "glslc: error: Option " << option
+          << " requires at least one argument" << std::endl;
+    return false;
+  }
+  auto stage = glslc::MapStageNameToForcedKind(argv[argi + 1]);
+  if (stage != shaderc_glsl_infer_from_source) {
+    ++argi;
+    if (argi + 1 >= argc) {
+      *errs << "glslc: error: Option " << option << " with stage "
+            << argv[argi - 1] << " requires an offset argument" << std::endl;
+      return false;
+    }
+  }
+  auto num_parse = ParseUint32(argv[argi + 1]);
+  if (!num_parse.first) {
+    *errs << "glslc: error: invalid offset value " << argv[argi + 1] << " for "
+          << option << std::endl;
+    return false;
+  }
+  ++argi;
+  *shader_kind = stage;
+  *offset = num_parse.second;
+  return true;
+}
+
 }  // anonymous namespace
 
 int main(int argc, char** argv) {
@@ -156,6 +255,23 @@ int main(int argc, char** argv) {
   glslc::FileCompiler compiler;
   bool success = true;
   bool has_stdin_input = false;
+  // Shader stage for a single option.
+  shaderc_shader_kind arg_stage = shaderc_glsl_infer_from_source;
+  // Binding base for a single option.
+  uint32_t arg_base = 0;
+
+  // What kind of uniform variable are we setting the binding base for?
+  shaderc_uniform_kind u_kind = shaderc_uniform_kind_buffer;
+
+  // Sets binding base for the given uniform kind.  If stage is
+  // shader_glsl_infer_from_source then set it for all shader stages.
+  auto set_binding_base = [&compiler](
+      shaderc_shader_kind stage, shaderc_uniform_kind kind, uint32_t base) {
+    if (stage == shaderc_glsl_infer_from_source)
+      compiler.options().SetBindingBase(kind, base);
+    else
+      compiler.options().SetBindingBaseForStage(stage, kind, base);
+  };
 
   for (int i = 1; i < argc; ++i) {
     const string_piece arg = argv[i];
@@ -200,6 +316,26 @@ int main(int argc, char** argv) {
       }
     } else if (arg == "-fauto-bind-uniforms") {
       compiler.options().SetAutoBindUniforms(true);
+    } else if (arg == "-fhlsl-iomap") {
+      compiler.options().SetHlslIoMapping(true);
+    } else if (((u_kind = shaderc_uniform_kind_image),
+                (arg == "-fimage-binding-base")) ||
+               ((u_kind = shaderc_uniform_kind_texture),
+                (arg == "-ftexture-binding-base")) ||
+               ((u_kind = shaderc_uniform_kind_sampler),
+                (arg == "-fsampler-binding-base")) ||
+               ((u_kind = shaderc_uniform_kind_buffer),
+                (arg == "-fubo-binding-base")) ||
+               ((u_kind = shaderc_uniform_kind_buffer),
+                (arg == "-fcbuffer-binding-base")) ||
+               ((u_kind = shaderc_uniform_kind_storage_buffer),
+                (arg == "-fssbo-binding-base")) ||
+               ((u_kind = shaderc_uniform_kind_unordered_access_view),
+                (arg == "-fuav-binding-base"))) {
+      if (!GetOptionalStageThenOffsetArgument(arg, &std::cerr, argc, argv, &i,
+                                              &arg_stage, &arg_base))
+        return 1;
+      set_binding_base(arg_stage, u_kind, arg_base);
     } else if (arg.starts_with("-fentry-point=")) {
       current_entry_point_name =
           arg.substr(std::strlen("-fentry-point=")).str();

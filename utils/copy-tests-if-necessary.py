@@ -109,9 +109,11 @@ def main():
     if intermediate_directory:
         target_location = "../" + target_location + intermediate_directory + "/"
     target_location = "EXE=" + target_location
+
     if src_glsl_stamp != old_glsl_stamp:
         setup_directory(glsl_src_dir, glsl_bin_dir)
-        substitute_file(os.path.join(glsl_bin_dir, "runtests"),
+        runtests_script = os.path.join(glsl_bin_dir, "runtests")
+        substitute_file(runtests_script,
                         ("EXE=../build/install/bin/", target_location))
         write_file(glsl_list_file, src_glsl_stamp)
 

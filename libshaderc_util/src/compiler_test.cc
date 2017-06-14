@@ -86,17 +86,22 @@ const char kHlslVertexShader[] =
     R"(float4 EntryPoint(uint index : SV_VERTEXID) : SV_POSITION
        { return float4(1.0, 2.0, 3.0, 4.0); })";
 
-// A GLSL vertex shader without bindings for its uniforms.
+// A GLSL fragment shader without bindings for its uniforms.
+// This also can be compiled as a vertex or compute shader.
 const char kGlslFragShaderNoExplicitBinding[] =
     R"(#version 450
        #extension GL_ARB_sparse_texture2: enable
        uniform texture2D my_tex;
        uniform sampler my_sam;
        layout(rgba32f) uniform image2D my_img;
+       layout(rgba32f) uniform imageBuffer my_imbuf;
+       uniform block { float x; float y; } my_ubo;
        void main() {
          texture(sampler2D(my_tex,my_sam),vec2(1.0));
          vec4 t = vec4(1.0);
          sparseImageLoadARB(my_img,ivec2(0),t);
+         imageLoad(my_imbuf,2);
+         float x = my_ubo.x;
        })";
 
 // Returns the disassembly of the given SPIR-V binary, as a string.
@@ -483,9 +488,11 @@ TEST_F(CompilerTest, DefaultsDoNotSetBindings) {
   const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
                                              EShLangFragment);
   const auto disassembly = Disassemble(words);
-  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_tex Binding 0")));
-  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_sam Binding 1")));
-  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_img Binding 2")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_tex Binding")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_sam Binding")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_img Binding")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_imbuf Binding")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_ubo Binding")));
 }
 
 TEST_F(CompilerTest, NoAutoMapBindingsDoesNotSetBindings) {
@@ -497,6 +504,8 @@ TEST_F(CompilerTest, NoAutoMapBindingsDoesNotSetBindings) {
       << disassembly;
   EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_sam Binding")));
   EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_img Binding")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_imbuf Binding")));
+  EXPECT_THAT(disassembly, Not(HasSubstr("OpDecorate %my_ubo Binding")));
 }
 
 TEST_F(CompilerTest, AutoMapBindingsSetsBindings) {
@@ -508,6 +517,96 @@ TEST_F(CompilerTest, AutoMapBindingsSetsBindings) {
       << disassembly;
   EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 1"));
   EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 2"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 3"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 4"));
+}
+
+TEST_F(CompilerTest, SetBindingBaseForTextureAdjustsTextureBindingsOnly) {
+  compiler_.SetAutoBindUniforms(true);
+  compiler_.SetAutoBindingBase(Compiler::UniformKind::Texture, 42);
+  const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
+                                             EShLangFragment);
+  const auto disassembly = Disassemble(words);
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_tex Binding 42"))
+      << disassembly;
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 0"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 1"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 2"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 3"));
+}
+
+TEST_F(CompilerTest, SetBindingBaseForSamplersAdjustsSamplerBindingsOnly) {
+  compiler_.SetAutoBindUniforms(true);
+  compiler_.SetAutoBindingBase(Compiler::UniformKind::Sampler, 42);
+  const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
+                                             EShLangFragment);
+  const auto disassembly = Disassemble(words);
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_tex Binding 0"))
+      << disassembly;
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 42"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 1"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 2"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 3"));
+}
+
+TEST_F(CompilerTest, SetBindingBaseForImagesAdjustsImageBindingsOnly) {
+  compiler_.SetAutoBindUniforms(true);
+  compiler_.SetAutoBindingBase(Compiler::UniformKind::Image, 42);
+  const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
+                                             EShLangFragment);
+  const auto disassembly = Disassemble(words);
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_tex Binding 0"))
+      << disassembly;
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 1"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 42"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 43"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 2"));
+}
+
+TEST_F(CompilerTest, SetBindingBaseForBufferAdjustsBufferBindingsOnly) {
+  compiler_.SetAutoBindUniforms(true);
+  compiler_.SetAutoBindingBase(Compiler::UniformKind::Buffer, 42);
+  const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
+                                             EShLangFragment);
+  const auto disassembly = Disassemble(words);
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_tex Binding 0"))
+      << disassembly;
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 1"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 2"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 3"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 42"));
+}
+
+TEST_F(CompilerTest, AutoMapBindingsSetsBindingsSetFragTextureBindingBaseCompiledAsFrag) {
+  compiler_.SetAutoBindUniforms(true);
+  compiler_.SetAutoBindingBaseForStage(Compiler::Stage::Fragment,
+                                       Compiler::UniformKind::Texture, 100);
+  const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
+                                             EShLangFragment);
+  const auto disassembly = Disassemble(words);
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_tex Binding 100"))
+      << disassembly;
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 0"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 1"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 2"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 3"));
+}
+
+TEST_F(CompilerTest, AutoMapBindingsSetsBindingsSetFragImageBindingBaseCompiledAsVert) {
+  compiler_.SetAutoBindUniforms(true);
+  // This is ignored because we're compiling the shader as a vertex shader, not
+  // as a fragment shader.
+  compiler_.SetAutoBindingBaseForStage(Compiler::Stage::Fragment,
+                                       Compiler::UniformKind::Image, 100);
+  const auto words = SimpleCompilationBinary(kGlslFragShaderNoExplicitBinding,
+                                             EShLangVertex);
+  const auto disassembly = Disassemble(words);
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_tex Binding 0"))
+      << disassembly;
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_sam Binding 1"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_img Binding 2"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_imbuf Binding 3"));
+  EXPECT_THAT(disassembly, HasSubstr("OpDecorate %my_ubo Binding 4"));
 }
 
 TEST_F(CompilerTest, EmitMessageTextOnlyOnce) {

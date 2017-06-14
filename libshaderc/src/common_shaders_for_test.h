@@ -47,8 +47,8 @@ const char kValuelessPredefinitionShader[] =
 // because some versions of glslang will error out for a too-low version
 // when generating SPIR-V.
 const char kDeprecatedAttributeShader[] =
-    "#version 140\n"
-    "attribute float x;\n"
+    "#version 400\n"
+    "layout(location = 0) attribute float x;\n"
     "void main() {}\n";
 
 // By default the compiler will emit a warning as version 550 is an unknown
@@ -80,9 +80,9 @@ const char kTwoErrorsShader[] =
 
 // Compiler should generate two warnings.
 const char kTwoWarningsShader[] =
-    "#version 140\n"
-    "attribute float x;\n"
-    "attribute float y;\n"
+    "#version 400\n"
+    "layout(location = 0) attribute float x;\n"
+    "layout(location = 1) attribute float y;\n"
     "void main(){}\n";
 
 // A shader that compiles under OpenGL compatibility profile rules,
@@ -220,10 +220,18 @@ const char kMinimalShaderAssembly[] = R"(
 
 const char kShaderWithUniformsWithoutBindings[] =
     R"(#version 450
+       #extension GL_ARB_sparse_texture2 : enable
        uniform texture2D my_tex;
        uniform sampler my_sam;
+       layout(rgba32f) uniform image2D my_img;
+       layout(rgba32f) uniform imageBuffer my_imbuf;
+       uniform block { float x; float y; } my_ubo;
        void main() {
          texture(sampler2D(my_tex,my_sam),vec2(1.0));
+         vec4 t;
+         sparseImageLoadARB(my_img,ivec2(0),t);
+         imageLoad(my_imbuf,42);
+         float x = my_ubo.x;
        })";
 
 #ifdef __cplusplus

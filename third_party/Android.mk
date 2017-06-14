@@ -95,9 +95,7 @@ LOCAL_SRC_FILES:= \
 		glslang/MachineIndependent/preprocessor/PpAtom.cpp \
 		glslang/MachineIndependent/preprocessor/PpContext.cpp \
 		glslang/MachineIndependent/preprocessor/Pp.cpp \
-		glslang/MachineIndependent/preprocessor/PpMemory.cpp \
 		glslang/MachineIndependent/preprocessor/PpScanner.cpp \
-		glslang/MachineIndependent/preprocessor/PpSymbols.cpp \
 		glslang/MachineIndependent/preprocessor/PpTokens.cpp
 
 LOCAL_C_INCLUDES:=$(GLSLANG_LOCAL_PATH) \
@@ -133,6 +131,7 @@ SPVTOOLS_SRC_FILES := \
 		source/table.cpp \
 		source/text.cpp \
 		source/text_handler.cpp \
+		source/util/bit_stream.cpp \
 		source/util/parse_number.cpp \
 		source/util/string_utils.cpp \
 		source/val/basic_block.cpp \
@@ -153,14 +152,18 @@ SPVTOOLS_SRC_FILES := \
 SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/basic_block.cpp \
 		source/opt/build_module.cpp \
+		source/opt/compact_ids_pass.cpp \
 		source/opt/def_use_manager.cpp \
 		source/opt/eliminate_dead_constant_pass.cpp \
+		source/opt/flatten_decoration_pass.cpp \
 		source/opt/fold_spec_constant_op_and_composite_pass.cpp \
 		source/opt/freeze_spec_constant_value_pass.cpp \
 		source/opt/function.cpp \
 		source/opt/inline_pass.cpp \
 		source/opt/instruction.cpp \
 		source/opt/ir_loader.cpp \
+		source/opt/local_access_chain_convert_pass.cpp \
+		source/opt/local_single_block_elim_pass.cpp \
 		source/opt/module.cpp \
 		source/opt/optimizer.cpp \
 		source/opt/pass_manager.cpp \
@@ -199,8 +202,16 @@ $(1)/core.insts-1.1.inc $(1)/operand.kinds-1.1.inc: \
 		                --core-insts-output=$(1)/core.insts-1.1.inc \
 		                --operand-kinds-output=$(1)/operand.kinds-1.1.inc
 		@echo "[$(TARGET_ARCH_ABI)] Grammar v1.1   : instructions & operands <= grammar JSON files"
-$(SPVTOOLS_LOCAL_PATH)/source/opcode.cpp: $(1)/core.insts-1.0.inc $(1)/core.insts-1.1.inc
-$(SPVTOOLS_LOCAL_PATH)/source/operand.cpp: $(1)/operand.kinds-1.0.inc $(1)/operand.kinds-1.1.inc
+$(1)/core.insts-1.2.inc $(1)/operand.kinds-1.2.inc: \
+        $(SPVTOOLS_LOCAL_PATH)/utils/generate_grammar_tables.py \
+        $(SPV_CORE11_GRAMMAR)
+		@$(HOST_PYTHON) $(SPVTOOLS_LOCAL_PATH)/utils/generate_grammar_tables.py \
+		                --spirv-core-grammar=$(SPV_CORE11_GRAMMAR) \
+		                --core-insts-output=$(1)/core.insts-1.2.inc \
+		                --operand-kinds-output=$(1)/operand.kinds-1.2.inc
+		@echo "[$(TARGET_ARCH_ABI)] Grammar v1.2   : instructions & operands <= grammar JSON files"
+$(SPVTOOLS_LOCAL_PATH)/source/opcode.cpp: $(1)/core.insts-1.0.inc $(1)/core.insts-1.1.inc $(1)/core.insts-1.2.inc
+$(SPVTOOLS_LOCAL_PATH)/source/operand.cpp: $(1)/operand.kinds-1.0.inc $(1)/operand.kinds-1.1.inc $(1)/operand.kinds-1.2.inc
 $(SPVTOOLS_LOCAL_PATH)/source/ext_inst.cpp: $(1)/glsl.std.450.insts-1.0.inc $(1)/opencl.std.insts-1.0.inc
 endef
 $(eval $(call gen_spvtools_grammar_tables,$(SPVTOOLS_OUT_PATH)))
