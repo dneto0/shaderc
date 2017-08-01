@@ -5,7 +5,7 @@ LOCAL_PATH := $(GLSLANG_LOCAL_PATH)
 
 GLSLANG_OS_FLAGS := -DGLSLANG_OSINCLUDE_UNIX
 # AMD and NV extensions are turned on by default in upstream Glslang.
-GLSLANG_DEFINES:= -DAMD_EXTENSIONS -DNV_EXTENSIONS $(GLSLANG_OS_FLAGS)
+GLSLANG_DEFINES:= -DAMD_EXTENSIONS -DNV_EXTENSIONS -DENABLE_HLSL $(GLSLANG_OS_FLAGS)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE:=SPIRV
@@ -46,7 +46,7 @@ include $(BUILD_STATIC_LIBRARY)
 # Build Glslang's HLSL parser library.
 include $(CLEAR_VARS)
 LOCAL_MODULE:=HLSL
-LOCAL_CXXFLAGS:=-std=c++11 -fno-exceptions -fno-rtti
+LOCAL_CXXFLAGS:=-std=c++11 -fno-exceptions -fno-rtti $(GLSLANG_DEFINES)
 LOCAL_SRC_FILES:= \
 		hlsl/hlslAttributes.cpp \
 		hlsl/hlslGrammar.cpp \
@@ -150,9 +150,12 @@ SPVTOOLS_SRC_FILES := \
 		source/validate_type_unique.cpp
 
 SPVTOOLS_OPT_SRC_FILES := \
+		source/opt/aggressive_dead_code_elim_pass.cpp \
 		source/opt/basic_block.cpp \
+		source/opt/block_merge_pass.cpp \
 		source/opt/build_module.cpp \
 		source/opt/compact_ids_pass.cpp \
+		source/opt/dead_branch_elim_pass.cpp \
 		source/opt/def_use_manager.cpp \
 		source/opt/eliminate_dead_constant_pass.cpp \
 		source/opt/flatten_decoration_pass.cpp \
@@ -160,10 +163,13 @@ SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/freeze_spec_constant_value_pass.cpp \
 		source/opt/function.cpp \
 		source/opt/inline_pass.cpp \
+		source/opt/insert_extract_elim.cpp \
 		source/opt/instruction.cpp \
 		source/opt/ir_loader.cpp \
 		source/opt/local_access_chain_convert_pass.cpp \
 		source/opt/local_single_block_elim_pass.cpp \
+		source/opt/local_single_store_elim_pass.cpp \
+		source/opt/local_ssa_elim_pass.cpp \
 		source/opt/module.cpp \
 		source/opt/optimizer.cpp \
 		source/opt/pass_manager.cpp \

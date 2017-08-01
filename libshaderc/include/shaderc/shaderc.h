@@ -388,6 +388,12 @@ void shaderc_compile_options_set_auto_bind_uniforms(
 void shaderc_compile_options_set_hlsl_io_mapping(
     shaderc_compile_options_t options, bool hlsl_iomap);
 
+// Sets whether the compiler should determine block member offsets using HLSL
+// packing rules instead of standard GLSL rules.  Defaults to false.  Only
+// affects GLSL compilation.  HLSL rules are always used when compiling HLSL.
+void shaderc_compile_options_set_hlsl_offsets(
+    shaderc_compile_options_t options, bool hlsl_offsets);
+
 // Sets the base binding number used for for a uniform resource type when
 // automatically assigning bindings.  For GLSL compilation, sets the lowest
 // automatically assigned number.  For HLSL compilation, the regsiter number
@@ -402,6 +408,18 @@ void shaderc_compile_options_set_binding_base(shaderc_compile_options_t options,
 void shaderc_compile_options_set_binding_base_for_stage(
     shaderc_compile_options_t options, shaderc_shader_kind shader_kind,
     shaderc_uniform_kind kind, uint32_t base);
+
+// Sets a descriptor set and binding for an HLSL register in the given stage.
+// This method keeps a copy of the string data.
+void shaderc_compile_options_set_hlsl_register_set_and_binding_for_stage(
+    shaderc_compile_options_t options, shaderc_shader_kind shader_kind,
+    const char* reg, const char* set, const char* binding);
+
+// Like shaderc_compile_options_set_hlsl_register_set_and_binding_for_stage,
+// but affects all shader stages.
+void shaderc_compile_options_set_hlsl_register_set_and_binding(
+    shaderc_compile_options_t options, const char* reg, const char* set,
+    const char* binding);
 
 // An opaque handle to the results of a call to any shaderc_compile_into_*()
 // function.

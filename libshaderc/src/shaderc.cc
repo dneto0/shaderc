@@ -417,6 +417,11 @@ void shaderc_compile_options_set_hlsl_io_mapping(
   options->compiler.SetHlslIoMapping(hlsl_iomap);
 }
 
+void shaderc_compile_options_set_hlsl_offsets(
+    shaderc_compile_options_t options, bool hlsl_offsets) {
+  options->compiler.SetHlslOffsets(hlsl_offsets);
+}
+
 void shaderc_compile_options_set_binding_base(shaderc_compile_options_t options,
                                               shaderc_uniform_kind kind,
                                               uint32_t base) {
@@ -428,6 +433,19 @@ void shaderc_compile_options_set_binding_base_for_stage(
     shaderc_uniform_kind kind, uint32_t base) {
   options->compiler.SetAutoBindingBaseForStage(GetStage(shader_kind),
                                                GetUniformKind(kind), base);
+}
+
+void shaderc_compile_options_set_hlsl_register_set_and_binding_for_stage(
+    shaderc_compile_options_t options, shaderc_shader_kind shader_kind,
+    const char* reg, const char* set, const char* binding) {
+  options->compiler.SetHlslRegisterSetAndBindingForStage(GetStage(shader_kind),
+                                                         reg, set, binding);
+}
+
+void shaderc_compile_options_set_hlsl_register_set_and_binding(
+    shaderc_compile_options_t options, const char* reg, const char* set,
+    const char* binding) {
+  options->compiler.SetHlslRegisterSetAndBinding(reg, set, binding);
 }
 
 shaderc_compiler_t shaderc_compiler_initialize() {

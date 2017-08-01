@@ -260,6 +260,13 @@ class CompileOptions {
     shaderc_compile_options_set_hlsl_io_mapping(options_, hlsl_iomap);
   }
 
+  // Sets whether the compiler should determine block member offsets using HLSL
+  // packing rules instead of standard GLSL rules.  Defaults to false.  Only
+  // affects GLSL compilation.  HLSL rules are always used when compiling HLSL.
+  void SetHlslOffsets(bool hlsl_offsets) {
+    shaderc_compile_options_set_hlsl_offsets(options_, hlsl_offsets);
+  }
+
   // Sets the base binding number used for for a uniform resource type when
   // automatically assigning bindings.  For GLSL compilation, sets the lowest
   // automatically assigned number.  For HLSL compilation, the regsiter number
@@ -275,6 +282,25 @@ class CompileOptions {
                               shaderc_uniform_kind kind, uint32_t base) {
     shaderc_compile_options_set_binding_base_for_stage(options_, shader_kind,
                                                        kind, base);
+  }
+
+  // Sets a descriptor set and binding for an HLSL register in the given stage.
+  // Copies the parameter strings.
+  void SetHlslRegisterSetAndBindingForStage(shaderc_shader_kind shader_kind,
+                                            const std::string& reg,
+                                            const std::string& set,
+                                            const std::string& binding) {
+    shaderc_compile_options_set_hlsl_register_set_and_binding_for_stage(
+        options_, shader_kind, reg.c_str(), set.c_str(), binding.c_str());
+  }
+
+  // Sets a descriptor set and binding for an HLSL register in any stage.
+  // Copies the parameter strings.
+  void SetHlslRegisterSetAndBinding(const std::string& reg,
+                                    const std::string& set,
+                                    const std::string& binding) {
+    shaderc_compile_options_set_hlsl_register_set_and_binding(
+        options_, reg.c_str(), set.c_str(), binding.c_str());
   }
 
  private:

@@ -569,10 +569,15 @@ TEST_F(CompileStringWithOptionsTest, ForcedVersionProfileUnknownVersionStd) {
       options_.get(), 4242 /*unknown version*/, shaderc_profile_core);
   ASSERT_NE(nullptr, compiler_.get_compiler_handle());
   // Warning message should complain about the unknown version.
-  EXPECT_THAT(CompilationWarnings(kMinimalShader, shaderc_glsl_vertex_shader,
-                                  options_.get()),
-              HasSubstr("warning: (version, profile) forced to be (4242, core),"
-                        " while in source code it is (140, none)\n"));
+  //
+  // Also, Glslang errors out on unkown versions, due to commit:
+  // https://github.com/KhronosGroup/glslang/commit/9353f1afab8d1c2b1811c6acd807675128eaabc5
+  const auto errs = CompilationErrors(
+      kMinimalShader, shaderc_glsl_vertex_shader, options_.get());
+  EXPECT_THAT(
+      errs, HasSubstr("warning: (version, profile) forced to be (4242, core), "
+                      "while in source code it is (140, none)\n"));
+  EXPECT_THAT(errs, HasSubstr("error: version not supported\n"));
 }
 
 TEST_F(CompileStringWithOptionsTest, ForcedVersionProfileVersionsBefore150) {
@@ -1636,6 +1641,32 @@ TEST_F(
   EXPECT_THAT(disassembly_text, HasSubstr("OpDecorate %my_img Binding 2"));
   EXPECT_THAT(disassembly_text, HasSubstr("OpDecorate %my_imbuf Binding 3"));
   EXPECT_THAT(disassembly_text, HasSubstr("OpDecorate %my_ubo Binding 4"));
+}
+
+TEST_F(CompileStringWithOptionsTest, GlslDefaultPackingUsed) {
+  const std::string disassembly_text =
+      CompilationOutput(kGlslShaderWeirdPacking, shaderc_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  EXPECT_THAT(disassembly_text,
+              HasSubstr("OpMemberDecorate %B 1 Offset 16"));
+}
+
+TEST_F(CompileStringWithOptionsTest, HlslOffsetsOptionDisableRespected) {
+  shaderc_compile_options_set_hlsl_offsets(options_.get(), false);
+  const std::string disassembly_text =
+      CompilationOutput(kGlslShaderWeirdPacking, shaderc_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  EXPECT_THAT(disassembly_text,
+              HasSubstr("OpMemberDecorate %B 1 Offset 16"));
+}
+
+TEST_F(CompileStringWithOptionsTest, HlslOffsetsOptionEnableRespected) {
+  shaderc_compile_options_set_hlsl_offsets(options_.get(), true);
+  const std::string disassembly_text =
+      CompilationOutput(kGlslShaderWeirdPacking, shaderc_vertex_shader,
+                        options_.get(), OutputType::SpirvAssemblyText);
+  EXPECT_THAT(disassembly_text,
+              HasSubstr("OpMemberDecorate %B 1 Offset 4"));
 }
 
 }  // anonymous namespace
