@@ -118,6 +118,7 @@ SPVTOOLS_SRC_FILES := \
 		source/ext_inst.cpp \
 		source/enum_string_mapping.cpp \
 		source/extensions.cpp \
+		source/id_descriptor.cpp \
 		source/libspirv.cpp \
 		source/name_mapper.cpp \
 		source/opcode.cpp \
@@ -155,6 +156,7 @@ SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/block_merge_pass.cpp \
 		source/opt/build_module.cpp \
 		source/opt/compact_ids_pass.cpp \
+		source/opt/common_uniform_elim_pass.cpp \
 		source/opt/dead_branch_elim_pass.cpp \
 		source/opt/def_use_manager.cpp \
 		source/opt/eliminate_dead_constant_pass.cpp \
@@ -163,6 +165,7 @@ SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/freeze_spec_constant_value_pass.cpp \
 		source/opt/function.cpp \
 		source/opt/inline_pass.cpp \
+		source/opt/inline_exhaustive_pass.cpp \
 		source/opt/insert_extract_elim.cpp \
 		source/opt/instruction.cpp \
 		source/opt/ir_loader.cpp \
@@ -170,6 +173,7 @@ SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/local_single_block_elim_pass.cpp \
 		source/opt/local_single_store_elim_pass.cpp \
 		source/opt/local_ssa_elim_pass.cpp \
+		source/opt/mem_pass.cpp \
 		source/opt/module.cpp \
 		source/opt/optimizer.cpp \
 		source/opt/pass_manager.cpp \
