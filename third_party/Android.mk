@@ -166,6 +166,7 @@ SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/function.cpp \
 		source/opt/inline_pass.cpp \
 		source/opt/inline_exhaustive_pass.cpp \
+		source/opt/inline_opaque_pass.cpp \
 		source/opt/insert_extract_elim.cpp \
 		source/opt/instruction.cpp \
 		source/opt/ir_loader.cpp \
@@ -176,6 +177,7 @@ SPVTOOLS_OPT_SRC_FILES := \
 		source/opt/mem_pass.cpp \
 		source/opt/module.cpp \
 		source/opt/optimizer.cpp \
+		source/opt/pass.cpp \
 		source/opt/pass_manager.cpp \
 		source/opt/set_spec_constant_default_value_pass.cpp \
 		source/opt/strip_debug_info_pass.cpp \
