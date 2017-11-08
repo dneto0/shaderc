@@ -51,20 +51,28 @@ for more information. See also the [`AUTHORS`](AUTHORS) and
 - `third_party/`: third party open source packages; see below
 - `utils/`: utility scripts for Shaderc
 
-Shaderc depends on glslang, the Khronos reference compiler for GLSL.
-Sometimes a change updates both Shaderc and glslang.  In that case the
-glslang change will appear in [google/glslang][google-glslang]
-before it appears upstream in [KhronosGroup/glslang][khr-glslang]
-We intend to upstream all changes to glslang. We maintain the separate
-copy only to stage those changes for review, and to provide something for
-Shaderc to build against in the meantime.  Please see
-[DEVELOPMENT.howto.md](DEVELOPMENT.howto.md) for more details.
+Shaderc depends on:
 
-Shaderc depends on [SPIRV-Tools][spirv-tools] for assembling, disassembling,
-and transforming SPIR-V binaries.
+* **Glslang**: the Khronos reference compiler for GLSL.
+  Sometimes a change updates both Shaderc and glslang.  In that case the
+  glslang change will appear in [google/glslang][google-glslang]
+  before it appears upstream in [KhronosGroup/glslang][khr-glslang]
+  We intend to upstream all changes to glslang. We maintain the separate
+  copy only to stage those changes for review, and to provide something for
+  Shaderc to build against in the meantime.  Please see
+  [DEVELOPMENT.howto.md](DEVELOPMENT.howto.md) for more details.
 
-Shaderc depends on the [Google Test](https://github.com/google/googletest)
-testing framework.
+* [SPIRV-Tools][spirv-tools] for assembling, disassembling,
+  and transforming SPIR-V binaries.
+
+For testing, Shaderc depends on:
+
+* The [Google Test][googletest] testing framework.
+
+* [Effcee][effcee]: A C++ library for stateful pattern matching of strings, inspired by
+  LLVM's FileCheck.
+
+* [RE2][re2]: A regular expression library used by Effcee.
 
 In the following sections, `$SOURCE_DIR` is the directory you intend to clone
 Shaderc into.
@@ -84,6 +92,8 @@ git clone https://github.com/google/googletest.git
 git clone https://github.com/google/glslang.git
 git clone https://github.com/KhronosGroup/SPIRV-Tools.git spirv-tools
 git clone https://github.com/KhronosGroup/SPIRV-Headers.git spirv-headers
+git clone https://github.com/google/effcee.git
+git clone https://github.com/google/re2.git
 cd $SOURCE_DIR/
 ```
 
@@ -240,6 +250,10 @@ older versions of Shaderc and its dependencies.
 [khr-glslang]: https://github.com/KhronosGroup/glslang
 [google-glslang]: https://github.com/google/glslang
 [spirv-tools]: https://github.com/KhronosGroup/SPIRV-Tools
+[spirv-tools]: https://github.com/KhronosGroup/SPIRV-Tools
+[googletest]: https://github.com/google/googletest
+[effcee]: https://github.com/google/effcee
+[re2]: https://github.com/google/re2
 [pyshaderc]: https://github.com/realitix/pyshaderc
 [shaderc-rs]: https://github.com/google/shaderc-rs
 [appveyor]: https://ci.appveyor.com/project/dneto0/shaderc

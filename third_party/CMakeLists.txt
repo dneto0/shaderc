@@ -11,18 +11,42 @@ set(SHADERC_SPIRV_HEADERS_DIR "${SHADERC_THIRD_PARTY_ROOT_DIR}/spirv-headers" CA
   "Location of spirv-headers source")
 set(SHADERC_GLSLANG_DIR "${SHADERC_THIRD_PARTY_ROOT_DIR}/glslang" CACHE STRING
   "Location of glslang source")
+set(SHADERC_RE2_DIR "${SHADERC_THIRD_PARTY_ROOT_DIR}/re2" CACHE STRING
+  "Location of re2 source")
+set(SHADERC_EFFCEE_DIR "${SHADERC_THIRD_PARTY_ROOT_DIR}/effcee" CACHE STRING
+  "Location of effcee source")
 
 set( SKIP_GLSLANG_INSTALL ${SHADERC_SKIP_INSTALL} )
 set( SKIP_SPIRV_TOOLS_INSTALL ${SHADERC_SKIP_INSTALL} )
 set( SKIP_GOOGLETEST_INSTALL ${SHADERC_SKIP_INSTALL} )
 
 # Configure third party projects.
+
+# We can use googletest, effcee, and re2 in tests.
 if(${SHADERC_ENABLE_TESTS})
   if (IS_DIRECTORY ${SHADERC_GOOGLE_TEST_DIR})
     add_subdirectory(${SHADERC_GOOGLE_TEST_DIR} googletest)
   endif()
   if (NOT TARGET gmock)
     message(FATAL_ERROR "gmock was not found - required for tests")
+  endif()
+
+  # The effcee target is optional.
+  # TODO(dneto): Make it required.
+  if (NOT TARGET effcee)
+    # If we're configuring re2 (via effcee), then turn off re2 testing.
+    # It runs for a very long time.
+    if (NOT TARGET re2)
+      set(RE2_BUILD_TESTING OFF)
+    endif()
+    if (IS_DIRECTORY ${SHADERC_EFFCEE_DIR})
+      add_subdirectory(${SHADERC_EFFCEE_DIR} effceetest)
+    endif()
+  endif()
+  if (TARGET effcee)
+    add_definitions(-DSHADERC_EFFCEE)
+  else()
+    message(STATUS "Shaderc did not find effcee.  Skipping effcee-based tests")
   endif()
 endif()
 

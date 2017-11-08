@@ -69,6 +69,8 @@ before_script:
   - git clone --depth=1 https://github.com/google/glslang             third_party/glslang
   - git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Tools   third_party/spirv-tools
   - git clone --depth=1 https://github.com/KhronosGroup/SPIRV-Headers third_party/spirv-headers
+  - git clone --depth=1 https://github.com/google/effcee              third_party/effcee
+  - git clone --depth=1 https://github.com/google/re2                 third_party/re2
 
 script:
   - mkdir build && cd build

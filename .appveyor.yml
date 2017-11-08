@@ -33,6 +33,8 @@ install:
   - git clone https://github.com/google/glslang.git             third_party/glslang
   - git clone https://github.com/KhronosGroup/SPIRV-Tools.git   third_party/spirv-tools
   - git clone https://github.com/KhronosGroup/SPIRV-Headers.git third_party/spirv-headers
+  - git clone https://github.com/google/effcee                  third_party/effcee
+  - git clone https://github.com/google/re2                     third_party/re2
 
 build:
   parallel: true  # enable MSBuild parallel builds
