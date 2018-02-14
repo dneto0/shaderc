@@ -22,7 +22,9 @@ Buffer<float4> t4 : register(t4);
 Buffer<float4> t5 : register(t5);
 
 float4 main() : SV_Target0 {
-   return float4(t4.Load(0) + t5.Load(1));
+   t4[2];
+   t5[7];
+   return float4(1.0);
 }
 """
 

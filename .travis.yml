@@ -36,9 +36,6 @@ matrix:
 cache:
   apt: true
 
-git:
-  depth: 1
-
 branches:
   only:
     - master
@@ -58,9 +55,6 @@ before_install:
     fi
 
 install:
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then
-      sudo easy_install pip;
-    fi
   - pip install --user nose
   - pip install --user cpp-coveralls
 
