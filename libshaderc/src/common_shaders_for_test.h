@@ -248,6 +248,24 @@ const char kHlslFragShaderWithRegisters[] =
          return float4(t4.Load(0) + t5.Load(1));
        })";
 
+// A GLSL compute shader using a regular barrier.
+const char kGlslShaderComputeBarrier[] =
+    R"(#version 450
+       void main() { barrier(); })";
+
+// A GLSL compute shader using the Subgroups feature.
+const char kGlslShaderComputeSubgroupBarrier[] =
+    R"(#version 450
+       #extension GL_KHR_shader_subgroup_basic : enable
+       void main() { subgroupBarrier(); })";
+
+const char kGlslMultipleFnShader[] =
+    R"(#version 450
+       layout(location=0) flat in  int inVal;
+       layout(location=0)      out int outVal;
+       int foo(int a) { return a; }
+       void main() { outVal = foo(inVal); })";
+
 #ifdef __cplusplus
 }
 #endif  // __cplusplus
