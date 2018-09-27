@@ -30,5 +30,23 @@ TEST(ConvertSpecificStage, Exhaustive) {
             shaderc_convert_specific_stage(shaderc_geometry_shader));
   EXPECT_EQ(shaderc_util::Compiler::Stage::Compute,
             shaderc_convert_specific_stage(shaderc_compute_shader));
+#ifdef NV_EXTENSIONS
+  EXPECT_EQ(shaderc_util::Compiler::Stage::RayGenNV,
+            shaderc_convert_specific_stage(shaderc_raygen_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::AnyHitNV,
+            shaderc_convert_specific_stage(shaderc_anyhit_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::ClosestHitNV,
+            shaderc_convert_specific_stage(shaderc_closesthit_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::IntersectNV,
+            shaderc_convert_specific_stage(shaderc_intersection_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::MissNV,
+            shaderc_convert_specific_stage(shaderc_miss_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::CallableNV,
+            shaderc_convert_specific_stage(shaderc_callable_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::TaskNV,
+            shaderc_convert_specific_stage(shaderc_task_shader));
+  EXPECT_EQ(shaderc_util::Compiler::Stage::MeshNV,
+            shaderc_convert_specific_stage(shaderc_mesh_shader));
+#endif
 }
 }  // anonymous namespace

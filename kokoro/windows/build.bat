@@ -29,6 +29,8 @@ git clone https://github.com/google/googletest.git
 git clone https://github.com/google/glslang.git
 git clone https://github.com/KhronosGroup/SPIRV-Tools.git spirv-tools
 git clone https://github.com/KhronosGroup/SPIRV-Headers.git spirv-headers
+git clone https://github.com/google/re2 spirv-tools/external/re2
+git clone https://github.com/google/effcee spirv-tools/external/effcee
 
 cd %SRC%
 mkdir build
@@ -57,7 +59,14 @@ if "%KOKORO_GITHUB_COMMIT%." == "." (
 ) else (
   set BUILD_SHA=%KOKORO_GITHUB_COMMIT%
 )
-cmake -DRE2_BUILD_TESTING=OFF -GNinja -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe ..
+
+:: Skip building SPIRV-Tools tests for VS2013
+if %VS_VERSION% == 2013 (
+  cmake -DRE2_BUILD_TESTING=OFF -DSPIRV_SKIP_TESTS=ON -GNinja -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe ..
+) else (
+  cmake -DRE2_BUILD_TESTING=OFF -GNinja -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DCMAKE_C_COMPILER=cl.exe -DCMAKE_CXX_COMPILER=cl.exe ..
+)
+
 if %ERRORLEVEL% GEQ 1 exit /b %ERRORLEVEL%
 
 echo "Build glslang... %DATE% %TIME%"
