@@ -67,14 +67,49 @@ shaderc_spvc_compile_options_clone(
 SHADERC_EXPORT void shaderc_spvc_compile_options_release(
     shaderc_spvc_compile_options_t options);
 
-// Sets the target shader environment, affecting which warnings or errors will
+// Sets the entry point.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_entry_point(
+    shaderc_spvc_compile_options_t options, const char* entry_point);
+
+// If true, unused variables will not appear in the output.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_remove_unused_variables(
+    shaderc_spvc_compile_options_t options, bool b);
+
+// Sets the source shader environment, affecting which warnings or errors will
 // be issued during validation.
-SHADERC_EXPORT void shaderc_spvc_compile_options_set_target_env(
-    shaderc_spvc_compile_options_t options, shaderc_target_env target,
+// Default value for environment is Vulkan 1.0.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_source_env(
+    shaderc_spvc_compile_options_t options, shaderc_target_env env,
     shaderc_env_version version);
 
-// Set language version.  Default is 450.
-SHADERC_EXPORT void shaderc_spvc_compile_options_set_output_language_version(
+// Sets the target shader environment, if this is different from the source
+// environment, then a transform between the environments will be performed if
+// possible. Currently only WebGPU <-> Vulkan 1.1 are defined.
+// Default value for environment is Vulkan 1.0.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_target_env(
+    shaderc_spvc_compile_options_t options, shaderc_target_env env,
+    shaderc_env_version version);
+
+// If true, Vulkan GLSL features are used instead of GL-compatible features.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_vulkan_semantics(
+    shaderc_spvc_compile_options_t options, bool b);
+
+// If true, gl_PerVertex is explicitly redeclared in vertex, geometry and
+// tessellation shaders. The members of gl_PerVertex is determined by which
+// built-ins are declared by the shader.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_separate_shader_objects(
+    shaderc_spvc_compile_options_t options, bool b);
+
+// Flatten uniform or push constant variable into (i|u)vec4 array.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_flatten_ubo(
+    shaderc_spvc_compile_options_t options, bool b);
+
+// Set GLSL language version.  Default is 450 (i.e. 4.5).
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_glsl_language_version(
+    shaderc_spvc_compile_options_t options, uint32_t version);
+
+// Set MSL language version.  Default is 10200 (i.e. 1.2).
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_msl_language_version(
     shaderc_spvc_compile_options_t options, uint32_t version);
 
 // Set HLSL shader model.  Default is 30.
@@ -90,6 +125,10 @@ SHADERC_EXPORT void shaderc_spvc_compile_options_set_fixup_clipspace(
 
 // If true invert gl_Position.y or equivalent.  Default is false.
 SHADERC_EXPORT void shaderc_spvc_compile_options_set_flip_vert_y(
+    shaderc_spvc_compile_options_t options, bool b);
+
+// Set if validation should be performed. Default is true.
+SHADERC_EXPORT void shaderc_spvc_compile_options_set_validate(
     shaderc_spvc_compile_options_t options, bool b);
 
 // Fill options with given data.  Return amount of data used, or zero

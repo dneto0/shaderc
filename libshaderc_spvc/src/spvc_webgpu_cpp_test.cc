@@ -1,4 +1,4 @@
-// Copyright 2018 The Shaderc Authors. All rights reserved.
+// Copyright 2019 The Shaderc Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,9 +26,13 @@ namespace {
 TEST(Compile, Glsl) {
   Compiler compiler;
   CompileOptions options;
+  options.SetSourceEnvironment(shaderc_target_env_webgpu,
+                               shaderc_env_version_webgpu);
+  options.SetTargetEnvironment(shaderc_target_env_vulkan,
+                               shaderc_env_version_vulkan_1_1);
 
   CompilationResult result = compiler.CompileSpvToGlsl(
-      kSmokeShaderBinary, sizeof(kSmokeShaderBinary) / sizeof(uint32_t),
+      kWebGPUShaderBinary, sizeof(kWebGPUShaderBinary) / sizeof(uint32_t),
       options);
   EXPECT_EQ(shaderc_compilation_status_success, result.GetCompilationStatus());
   EXPECT_NE(0, result.GetOutput().size());
@@ -37,9 +41,13 @@ TEST(Compile, Glsl) {
 TEST(Compile, Hlsl) {
   Compiler compiler;
   CompileOptions options;
+  options.SetSourceEnvironment(shaderc_target_env_webgpu,
+                               shaderc_env_version_webgpu);
+  options.SetTargetEnvironment(shaderc_target_env_vulkan,
+                               shaderc_env_version_vulkan_1_1);
 
   CompilationResult result = compiler.CompileSpvToHlsl(
-      kSmokeShaderBinary, sizeof(kSmokeShaderBinary) / sizeof(uint32_t),
+      kWebGPUShaderBinary, sizeof(kWebGPUShaderBinary) / sizeof(uint32_t),
       options);
   EXPECT_EQ(shaderc_compilation_status_success, result.GetCompilationStatus());
   EXPECT_NE(0, result.GetOutput().size());
@@ -48,9 +56,13 @@ TEST(Compile, Hlsl) {
 TEST(Compile, Msl) {
   Compiler compiler;
   CompileOptions options;
+  options.SetSourceEnvironment(shaderc_target_env_webgpu,
+                               shaderc_env_version_webgpu);
+  options.SetTargetEnvironment(shaderc_target_env_vulkan,
+                               shaderc_env_version_vulkan_1_1);
 
   CompilationResult result = compiler.CompileSpvToMsl(
-      kSmokeShaderBinary, sizeof(kSmokeShaderBinary) / sizeof(uint32_t),
+      kWebGPUShaderBinary, sizeof(kWebGPUShaderBinary) / sizeof(uint32_t),
       options);
   EXPECT_EQ(shaderc_compilation_status_success, result.GetCompilationStatus());
   EXPECT_NE(0, result.GetOutput().size());
