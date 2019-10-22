@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Run the spirv-cross tests on spvc."""
 
 from multiprocessing import Pool
@@ -38,24 +37,25 @@ class TestEnv:
         self.spirv_as = script_args.spirv_as
         self.spirv_opt = script_args.spirv_opt
         self.glslang = script_args.glslang
+        self.run_spvc_with_validation = True
 
-    def log_unexpected_successes(self, successes):
-        """Log list of unexpected test case successes."""
-        if not len(successes):
-            log_string = 'Encountered 0 unexpected successes'
+    def log_unexpected(self, test_list, test_result):
+        """Log list of test cases with unexpected outcome."""
+        if not len(test_list):
+            log_string = 'Encountered 0 unexpected ' + test_result
         else:
-            log_string = 'Encountered {} unexpected success(es):\n'.format(
-                len(successes))
-            successes = ['\t{}'.format(success) for success in successes]
-            log_string += '\n'.join(successes)
+            log_string = 'Encountered ' + format(
+                len(test_list)) + ' unexpected ' + test_result + '(s):\n'
+            test_list = ['\t{}'.format(test) for test in test_list]
+            log_string += '\n'.join(test_list)
         print(log_string)
 
-    def log_unexpected_failures(self, failures):
-        """Log list of unexpected test case failures."""
+    def log_missing_failures(self, failures):
+        """Log list of known failing test cases that were not run."""
         if not len(failures):
-            log_string = 'Encountered 0 unexpected failures'
+            log_string = 'Encountered 0 missing failures'
         else:
-            log_string = 'Encountered {} unexpected failures(s):\n'.format(
+            log_string = 'Encountered {} missing failures(s):\n'.format(
                 len(failures))
             failures = ['\t{}'.format(failure) for failure in failures]
             log_string += '\n'.join(failures)
@@ -122,6 +122,10 @@ class TestEnv:
         Returns status of spvc, output of spvc. Exits entirely if spvc
         fails and give_up flag is set.
         """
+
+        if not self.run_spvc_with_validation:
+            flags.append('--no-validate')
+
         status, output = self.check_output(
             [self.spvc] + flags + ['-o', out, '--source-env=vulkan1.1', '--target-env=vulkan1.1', inp])
         if not status and self.give_up:
@@ -140,7 +144,7 @@ class TestEnv:
             reference = os.path.join('reference', 'opt', shader)
         else:
             reference = os.path.join('reference', shader)
-        self.log_command(['reference', reference])
+        self.log_command(['reference', reference, optimize])
         if self.dry_run or filecmp.cmp(
                 result, os.path.join(self.cross_dir, reference), False):
             return True, reference
@@ -186,16 +190,14 @@ def remove_files(*filenames):
 
 def test_glsl(test_env, shader, filename, optimize):
     """Test spvc producing GLSL the same way SPIRV-Cross is tested.
-
     There are three steps: compile input, convert to GLSL, check result.
-
     Returns a list of successful tests and a list of failed tests.
     """
     successes = []
     failures = []
 
-    # Files with .nocompat. in their name are known to not work with GLSL
-    if not '.nocompat.' in filename:
+    # Files with .nocompat. in their name are known to not work.
+    if '.nocompat.' in filename:
         return [], []
 
     status, input_shader = test_env.compile_input_shader(
@@ -206,16 +208,11 @@ def test_glsl(test_env, shader, filename, optimize):
         test_env.log_failure(shader, optimize)
         return successes, failures
 
-    if not '.invalid.' in filename:
-        # logged for compatibility with SPIRV-Cross test script
-        test_env.log_command(
-            ['spirv-val', '--target-env', 'vulkan1.1', input_shader])
-
     # Run spvc to convert Vulkan to GLSL.  Up to two tests are performed:
     # - Regular test on most files
     # - Vulkan-specific test on Vulkan test input
     flags = ['--entry=main', '--language=glsl']
-    if not '.noeliminate' in filename:
+    if '.noeliminate' not in filename:
         flags.append('--remove-unused-variables')
     if '.legacy.' in filename:
         flags.extend(['--glsl-version=100', '--es'])
@@ -229,7 +226,7 @@ def test_glsl(test_env, shader, filename, optimize):
         flags.append('--separate-shader-objects')
 
     output = input_shader + filename
-    if '.vk.' in filename or '.asm.' in filename:
+    if '.vk.' in filename:
         status, _ = test_env.run_spvc(
             input_shader, output, flags + ['--vulkan-semantics'])
     else:
@@ -237,19 +234,9 @@ def test_glsl(test_env, shader, filename, optimize):
     if not status:
         output = None
 
-    # logged for compatibility with SPIRV-Cross test script
-    if '.vk.' in filename or '.asm.' in filename:
-        test_env.log_command([test_env.glslang, output])
-    else:
-        test_env.log_command(
-            [test_env.glslang, '--target-env', 'vulkan1.1', '-V', output])
-
-    # Check result(s).
-    # Compare either or both files produced above to appropriate reference
-    # file.
     if output:
         reference_shader = shader
-        if '.vk.' in filename or '.asm.' in filename:
+        if '.vk.' in filename:
             reference_shader = shader + '.vk'
         result, _ = test_env.check_reference(
             output, reference_shader, optimize)
@@ -303,16 +290,18 @@ msl_standards_macos = (
     '',      '-std=macos-metal1.2',
 )
 
-
 def test_msl(test_env, shader, filename, optimize):
     """Test spvc producing MSL the same way SPIRV-Cross is tested.
-
     There are three steps: compile input, convert to HLSL, check result.
-
     Returns a list of successful tests and a list of failed tests.
     """
     successes = []
     failures = []
+
+    # Files with .nocompat. in their name are known to not work.
+    if '.nocompat.' in filename:
+        return [], []
+
     status, input_shader = test_env.compile_input_shader(
         shader, filename, optimize and ('.noopt.' not in filename))
     if not status:
@@ -348,11 +337,6 @@ def test_msl(test_env, shader, filename, optimize):
         test_env.log_failure(shader, optimize)
         return successes, failures
 
-    if not '.invalid.' in filename:
-        # logged for compatibility with SPIRV-Cross test script
-        test_env.log_command(
-            ['spirv-val', '--target-env', 'vulkan1.1', input_shader])
-
     # Check result.
     if output:
         result, reference = test_env.check_reference(output, shader, optimize)
@@ -361,15 +345,6 @@ def test_msl(test_env, shader, filename, optimize):
         else:
             failures.append((shader, optimize))
             test_env.log_failure(shader, optimize)
-        # logged for compatibility with SPIRV-Cross test script
-        test_env.log_command(['xcrun', '--sdk',
-                              'iphoneos' if '.ios.' in filename else 'macosx',
-                              'metal', '-x', 'metal',
-                              lookup(
-                                  msl_standards_ios if '.ios.' in filename else msl_standards_macos,
-                                  filename),
-                              '-Werror', '-Wno-unused-variable',
-                              reference])
     else:
         failures.append((shader, optimize))
         test_env.log_failure(shader, optimize)
@@ -380,13 +355,15 @@ def test_msl(test_env, shader, filename, optimize):
 
 def test_hlsl(test_env, shader, filename, optimize):
     """Test spvc producing HLSL the same way SPIRV-Cross is tested.
-
     There are three steps: compile input, convert to HLSL, check result.
-
     Returns a list of successful tests and a list of failed tests.
     """
     successes = []
     failures = []
+
+    # Files with .nocompat. in their name are known to not work.
+    if '.nocompat.' in filename:
+        return [], []
 
     status, input_shader = test_env.compile_input_shader(
         shader, filename, optimize and ('.noopt.' not in filename))
@@ -406,15 +383,7 @@ def test_hlsl(test_env, shader, filename, optimize):
         test_env.log_failure(shader, optimize)
         return successes, failures
 
-    if not '.invalid.' in filename:
-        # logged for compatibility with SPIRV-Cross test script
-        test_env.log_command(
-            ['spirv-val', '--target-env', 'vulkan1.1', input_shader])
-
     if output:
-        # logged for compatibility with SPIRV-Cross test script
-        test_env.log_command([test_env.glslang, '-e', 'main',
-                              '-D', '--target-env', 'vulkan1.1', '-V', output])
         # TODO(bug 649): Log dxc run here
         result, _ = test_env.check_reference(output, shader, optimize)
         if result:
@@ -436,7 +405,7 @@ def test_reflection(test_env, shader, filename, optimize):
     Returns a tuple indicating the passed in test has failed.
     """
     test_env.log_failure(shader, optimize)
-    return [], [(shader, optimize)]
+    return [], [(shader, optimize)], []
     # TODO(bug 650): Implement this test
 
 
@@ -457,7 +426,7 @@ test_case_dirs = (
 
 
 def work_function(work_args):
-    """"Unpacks the test case args and invokes the appropriate in test
+    """Unpacks the test case args and invokes the appropriate in test
     function."""
     (test_function, test_env, shader, filename, optimize) = work_args
     return test_function(test_env, shader, filename, optimize)
@@ -465,23 +434,26 @@ def work_function(work_args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-v', '--verbose', dest='verbose', action='store_true',
-                        help='Enable additional diagnoistic logging')
-    parser.add_argument('-n', '--dry-run', dest='dry_run', action='store_true',
-                        help='Do not execute commands')
+    parser.add_argument('-v', '--verbose', dest='verbose',
+                        action='store_true', help='Enable additional diagnostic logging')
+    parser.add_argument('-n', '--dry-run', dest='dry_run',
+                        action='store_true', help='Do not execute commands')
     parser.add_argument('-g', '--give-up', dest='give_up',
-                        action='store_true',
-                        help='Quit after first failure')
-    parser.add_argument('-f', '--test-filter', dest='test_filter',
-                        action='store', metavar='<test filter regex>',
-                        help='Only run tests that contain given regex string')
+                        action='store_true', help='Quit after first failure')
+    parser.add_argument('-f', '--test-filter', dest='test_filter', action='store',
+                        metavar='<test filter regex>', help='Only run tests that contain given regex string')
     parser.add_argument('-j', '--jobs', dest='jobs', type=int, default=0, action='store',
                         metavar='<number of processes to use>', help='Use as many processes as specified, 0 indicates let the script decide.')
+    parser.add_argument('--update_known_failures', dest='update_known_failures',
+                        action='store_true', help='Write out the failures to spvc/test/known_failures')
+    parser.add_argument('--run-spvc-tests', dest='run_spvc_tests',
+                        action='store_true', help='Run tests stored in spvir-cross and spvc directory using spvc parser')
     parser.add_argument('spvc', metavar='<spvc executable>')
     parser.add_argument('spirv_as', metavar='<spirv-as executable>')
     parser.add_argument('spirv_opt', metavar='<spirv-opt executable>')
     parser.add_argument('glslang', metavar='<glslangValidator executable>')
     parser.add_argument('cross_dir', metavar='<SPIRV-cross directory>')
+    parser.add_argument('spvc_test_dir', metavar='<spvc test directory>')
     script_args = parser.parse_args()
 
     test_env = TestEnv(script_args)
@@ -489,8 +461,12 @@ def main():
     test_regex = None
     if script_args.test_filter:
         print('Filtering tests using \'{}\''.format(script_args.test_filter))
+        print('Will not check for missing failures')
         test_regex = re.compile(script_args.test_filter)
 
+    # Adding tests:
+    # Walk SPIRV-Cross test directory and add files to tests list
+    # if --run_spvc_tests, also walk spvc test directory and add them to tests list
     tests = []
     for test_case_dir, test_function, optimize in test_case_dirs:
         walk_dir = os.path.join(script_args.cross_dir, test_case_dir)
@@ -502,48 +478,137 @@ def main():
                 if not test_regex or re.search(test_regex, shader):
                     tests.append((test_function, test_env,
                                   shader, filename, optimize))
+        if script_args.run_spvc_tests:
+            walk_dir = os.path.join(script_args.spvc_test_dir, test_case_dir)
+            for dirpath, dirnames, filenames in os.walk(walk_dir):
+                dirnames.sort()
+                reldir = os.path.relpath(dirpath, script_args.spvc_test_dir)
+                for filename in sorted(filenames):
+                    shader = os.path.join(reldir, filename)
+                    if not test_regex or re.search(test_regex, shader):
+                        tests.append((test_function, test_env,
+                                      shader, filename, optimize))
 
     if not script_args.jobs:
         pool = Pool()
     else:
         pool = Pool(script_args.jobs)
-    results = pool.map(work_function, tests)
 
+    # run all test without --no-validate flag
+    test_env.run_spvc_with_validation = True
+    results = pool.map(work_function, tests)
+    # This can occur if -f is passed in with a pattern that doesn't match to
+    # anything, or only matches to tests that are skipped.
+    if not results:
+        print('Did not receive any results from workers...')
+        return False
     successes, failures = zip(*results)
+
+    # run all tests with --no-validate flag
+    test_env.run_spvc_with_validation = False
+    results = pool.map(work_function, tests)
+    # This can occur if -f is passed in with a pattern that doesn't match to
+    # anything, or only matches to tests that are skipped.
+    # This branch should be unreachable since the early check would have been activated
+    if not results:
+        print('Did not receive any results from workers (happened while --no-validate run)...')
+        return False
+    successes_without_validation, _ = zip(*results)
+
+
     # Flattening lists of lists, and convert path markers if needed
     successes = list(itertools.chain.from_iterable(successes))
     successes = list(
         map(lambda x: (x[0].replace(os.path.sep, '/'), x[1]), successes))
+
     failures = list(itertools.chain.from_iterable(failures))
     failures = list(
         map(lambda x: (x[0].replace(os.path.sep, '/'), x[1]), failures))
+    successes_without_validation = list(itertools.chain.from_iterable(successes_without_validation))
+    successes_without_validation = list(
+        map(lambda x: (x[0].replace(os.path.sep, '/'), x[1]), successes_without_validation))
+    failures.sort()
+
+    fail_file = ""
+    if script_args.run_spvc_tests:
+        fail_file = os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), 'known_spvc_failures')
+        print('Parser = spvc, Tests Directory = spirv-cross/ + spvc/ fail_file = known_spvc_failures')
+    else:
+        fail_file = os.path.join(os.path.dirname(
+            os.path.realpath(__file__)), 'known_failures')
+        print('Parser = spirv-cross, Tests Directory = spirv-cross/ + fail_file = known_failures')
 
     print('{} test cases'.format(len(successes) + len(failures)))
-    print('{} passed'.format(len(successes)))
+    print('{} passed and'.format(len(successes)))
+    print('{} passed with --no-validation flag'.format(len(successes_without_validation)))
 
-    fail_file = os.path.join(os.path.dirname(
-        os.path.realpath(__file__)), 'known_failures')
+
+    if script_args.update_known_failures:
+        print('Updating {}'.format(fail_file))
+        with open(fail_file, 'w+') as f:
+            for failure in failures:
+                f. write('{},{}\n'.format(failure[0], failure[1]))
     with open(fail_file, 'r') as f:
         known_failures = f.read().splitlines()
-
     known_failures = set(
         map(lambda x: (x.split(',')[0], x.split(',')[1] == 'True'), known_failures))
 
+    invalid_file = os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), 'known_invalids')
+    with open(invalid_file, 'r') as f:
+        known_invalids = f.read().splitlines()
+    known_invalids = set(
+        map(lambda x: (x.split(',')[0], x.split(',')[1] == 'True'),known_invalids))
+
+    unconfirmed_invalid_file = os.path.join(os.path.dirname(
+        os.path.realpath(__file__)), 'unconfirmed_invalids')
+    with open(unconfirmed_invalid_file, 'r') as f:
+        unconfirmed_invalids = f.read().splitlines()
+    unconfirmed_invalids = set(
+        map(lambda x: (x.split(',')[0], x.split(',')[1] == 'True'),unconfirmed_invalids))
+
     unexpected_successes = []
     unexpected_failures = []
+    unexpected_invalids = []
+    unexpected_valids = []
+
+    if not script_args.test_filter:
+        missing_failures = []
 
     for success in successes:
         if success in known_failures:
             unexpected_successes.append(success)
+        if success in known_invalids:
+            unexpected_valids.append(success)
 
     for failure in failures:
         if failure not in known_failures:
-            unexpected_failures.append(failure)
+            if failure not in known_invalids:
+                unexpected_failures.append(failure)
 
-    test_env.log_unexpected_successes(unexpected_successes)
-    test_env.log_unexpected_failures(unexpected_failures)
+    if not script_args.test_filter:
+        for known_failure in known_failures:
+            if known_failure not in successes and known_failure not in failures:
+                missing_failures.append(known_failure)
 
-    return len(unexpected_successes) != 0 or len(unexpected_failures) != 0
+    for invalid in successes_without_validation:
+        if invalid not in successes:
+            if invalid not in unconfirmed_invalids and invalid not in known_invalids:
+                unexpected_invalids.append(invalid)
+
+    test_env.log_unexpected(unexpected_successes, 'success')
+    test_env.log_unexpected(unexpected_failures, 'failure')
+    test_env.log_unexpected(unexpected_invalids, 'invalid')
+    test_env.log_unexpected(unexpected_valids, 'valid')
+
+    if not script_args.test_filter:
+        test_env.log_missing_failures(missing_failures)
+
+    if not script_args.test_filter:
+        return len(unexpected_successes) != 0 or len(unexpected_failures) != 0 or len(missing_failures) != 0
+    else:
+        return len(unexpected_successes) != 0 or len(unexpected_failures) != 0
 
 
 if __name__ == '__main__':
