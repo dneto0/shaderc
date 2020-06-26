@@ -129,8 +129,13 @@ Options:
   -I <value>        Add directory to include search path.
   -mfmt=<format>    Output SPIR-V binary code using the selected format. This
                     option may be specified only when the compilation output is
-                    in SPIR-V binary code form. Available options include bin, c
-                    and num. By default the binary output format is bin.
+                    in SPIR-V binary code form. Available options are:
+                      bin   - SPIR-V binary words.  This is the default.
+                      c     - Binary words as C initializer list of 32-bit ints
+                      num   - List of comma-separated 32-bit hex integers
+                      wgsl  - WGSL source. This is experimental, and only works
+                              if glslc was built with the optional dependency
+                              on the "tint" third party library.
   -M                Generate make dependencies. Implies -E and -w.
   -MM               An alias for -M.
   -MD               Generate make dependencies and compile.
@@ -477,6 +482,9 @@ int main(int argc, char** argv) {
       } else if (binary_output_format == "c") {
         compiler.SetSpirvBinaryOutputFormat(
             glslc::FileCompiler::SpirvBinaryEmissionFormat::CInitList);
+      } else if (binary_output_format == "wgsl") {
+        compiler.SetSpirvBinaryOutputFormat(
+            glslc::FileCompiler::SpirvBinaryEmissionFormat::WGSL);
       } else {
         std::cerr << "glslc: error: invalid value '" << binary_output_format
                   << "' in '-mfmt=" << binary_output_format << "'" << std::endl;

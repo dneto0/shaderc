@@ -118,6 +118,18 @@ class TestFmtBinErrorWhenOutputDisasembly(expect.ErrorMessage):
 
 
 @inside_glslc_testsuite('OptionMfmt')
+class TestFmtWgslErrorWhenOutputDisasembly(expect.ErrorMessage):
+    """Tests that specifying '-mfmt=wgsl' when the compiler is set to
+    disassembly mode should trigger an error.
+    """
+    shader = FileShader(MINIMAL_SHADER, '.vert')
+    glslc_args = [shader, '-mfmt=wgsl', '-S', '-o', 'output_file']
+    expected_error = ("glslc: error: cannot emit output as a WGSL"
+                      " source program when the output is not SPIR-V"
+                      " binary code\n")
+
+
+@inside_glslc_testsuite('OptionMfmt')
 class TestFmtNumErrorWhenOutputPreprocess(expect.ErrorMessage):
     """Tests that specifying '-mfmt=num' when the compiler is set to
     preprocessing only mode should trigger an error.
@@ -126,6 +138,18 @@ class TestFmtNumErrorWhenOutputPreprocess(expect.ErrorMessage):
     glslc_args = [shader, '-mfmt=num', '-E', '-o', 'output_file']
     expected_error = (
         "glslc: error: cannot emit output as a list of hex numbers "
+        "when the output is not SPIR-V binary code\n")
+
+
+@inside_glslc_testsuite('OptionMfmt')
+class TestFmtWgslErrorWhenOutputPreprocess(expect.ErrorMessage):
+    """Tests that specifying '-mfmt=wgsl' when the compiler is set to
+    preprocessing only mode should trigger an error.
+    """
+    shader = FileShader(MINIMAL_SHADER, '.vert')
+    glslc_args = [shader, '-mfmt=wgsl', '-E', '-o', 'output_file']
+    expected_error = (
+        "glslc: error: cannot emit output as a WGSL source program "
         "when the output is not SPIR-V binary code\n")
 
 
