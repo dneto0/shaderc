@@ -1,7 +1,14 @@
 Revision history for Shaderc
 
 v2026.4-dev 2026-07-15
+ - Use Glslang 16.6.0, SPIRV-Tools v2026.4.rc2
  - Incorporate fixes for SPV_KHR_abort abortEXT(...)
+ - glslc:
+     option -fshader-stage now accepts all shader
+     stage names as allowed in #pragma shader_stage(<stage>)>
+     This includes ray tracing, task, and mesh shader
+     stages.
+ - Fixes an assert
 
 v2026.3 2026-07-15
  - Deprecate HLSL compilation.
